@@ -1,0 +1,787 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Paper Trading Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&display=swap');
+
+  :root {
+    --bg: #0B0F0D;
+    --bg-card: #121712;
+    --bg-card-hover: #171D18;
+    --border: #263029;
+    --text: #8FCC9E;
+    --text-bright: #F2FFF6;
+    --text-muted: #5F7A68;
+    --primary: #5EFF8F;
+    --secondary: #8FFFC7;
+    --cta: #7DD8F5;
+    --green: #5EFF8F;
+    --red: #FF6B6B;
+    --radius: 10px;
+    --glow: 0 0 10px rgba(94, 255, 143, .55);
+    --glow-red: 0 0 10px rgba(255, 107, 107, .45);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Fira Code', monospace;
+    line-height: 1.5;
+    min-height: 100vh;
+  }
+
+  .mono { font-family: 'Fira Code', monospace; }
+
+  a, button, input, select { font-family: inherit; }
+
+  /* ---------------- login ---------------- */
+  #login-screen {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .login-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 40px;
+    width: 100%;
+    max-width: 360px;
+    text-align: center;
+  }
+  .login-card h1 { font-size: 20px; margin: 0 0 4px; text-shadow: var(--glow); }
+  .login-card p { color: var(--text-muted); font-size: 14px; margin: 0 0 24px; }
+  .login-card input {
+    width: 100%; padding: 12px 14px; border-radius: 8px; border: 1px solid var(--border);
+    background: #090D0A; color: var(--text); font-size: 15px; margin-bottom: 12px;
+  }
+  .login-card input:focus { outline: 2px solid var(--primary); outline-offset: 1px; }
+  #login-error { color: var(--red); font-size: 13px; min-height: 18px; margin-bottom: 8px; }
+
+  /* ---------------- layout ---------------- */
+  #app { display: none; }
+  .wrap {
+    width: 80%;
+    max-width: 1600px;
+    min-width: 320px;
+    margin: 0 auto;
+    padding: 28px 0 60px;
+  }
+
+  header.topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 24px; flex-wrap: wrap; gap: 12px;
+  }
+  header.topbar h1 { font-size: 22px; margin: 0; text-shadow: var(--glow); }
+  header.topbar .sub { color: var(--text-muted); font-size: 13px; margin-top: 2px; }
+
+  .badges { display: flex; gap: 8px; flex-wrap: wrap; }
+  .badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 6px 12px; border-radius: 999px; font-size: 13px; font-weight: 600;
+    border: 1px solid var(--border); background: var(--bg-card); color: var(--text-bright);
+  }
+  .badge .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-muted); }
+  .badge.ok .dot { background: var(--green); box-shadow: var(--glow); }
+  .badge.danger .dot { background: var(--red); box-shadow: var(--glow-red); }
+  .badge.warn .dot { background: var(--secondary); }
+
+  /* Giá trị "trạng thái sống" (regime, position status...) — sáng + glow hơn
+     .value thường để phân biệt với số liệu tĩnh. */
+  .value.accent { color: var(--primary); text-shadow: var(--glow); }
+
+  button.btn {
+    cursor: pointer; border: 1px solid var(--border); background: var(--bg-card);
+    color: var(--text-bright); padding: 9px 16px; border-radius: 8px; font-size: 14px;
+    font-weight: 500; transition: background-color 200ms, border-color 200ms;
+  }
+  button.btn:hover { background: var(--bg-card-hover); border-color: var(--primary); }
+  button.btn:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+  button.btn.primary { background: var(--primary); border-color: var(--primary); color: #001A05; font-weight: 700; }
+  button.btn.primary:hover { background: var(--secondary); }
+  button.btn.cta { background: var(--cta); border-color: var(--cta); color: #001A1F; font-weight: 700; }
+  button.btn.cta:hover { filter: brightness(1.1); }
+  button.btn.danger { background: transparent; border-color: var(--red); color: var(--red); }
+  button.btn.danger:hover { background: rgba(227,123,123,.12); }
+  button.btn:disabled { opacity: .5; cursor: not-allowed; }
+  button.btn.small { padding: 6px 12px; font-size: 13px; }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(12, 1fr);
+    gap: 20px;
+  }
+  .card {
+    background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 18px 20px;
+    display: flex; flex-direction: column;
+  }
+  .card h2 {
+    font-size: 14px; margin: 0 0 14px; font-weight: 600; color: var(--text-bright);
+    text-shadow: var(--glow);
+    display: flex; align-items: center; justify-content: space-between;
+    text-transform: uppercase; letter-spacing: .04em;
+  }
+  .card h2 .hint { font-size: 11px; color: var(--text-muted); font-weight: 400; text-transform: none; letter-spacing: 0; }
+  .h2-right { display: flex; align-items: center; gap: 8px; }
+
+  .live-badge {
+    display: inline-flex; align-items: center; gap: 5px; font-size: 10px; font-weight: 700;
+    letter-spacing: .05em; color: var(--primary); text-shadow: var(--glow);
+  }
+  .live-dot {
+    width: 6px; height: 6px; border-radius: 50%; background: currentColor;
+    box-shadow: var(--glow); animation: live-pulse 1.6s ease-in-out infinite;
+  }
+  @keyframes live-pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: .25; transform: scale(.65); } }
+
+  /* Không có run.py nào đang giữ monitoring lock — báo IDLE thay vì LIVE giả. */
+  .live-badge.idle { color: var(--text-muted); text-shadow: none; }
+  .live-badge.idle .live-dot { animation: none; box-shadow: none; opacity: .5; }
+
+  .col-3 { grid-column: span 3; }
+  .col-4 { grid-column: span 4; }
+  .col-5 { grid-column: span 5; }
+  .col-6 { grid-column: span 6; }
+  .col-7 { grid-column: span 7; }
+  .col-8 { grid-column: span 8; }
+  .col-12 { grid-column: span 12; }
+
+  /* Cặp card tự khớp chiều cao với nhau (vd Tính score / Tick gần đây). CSS
+     align-items:stretch một mình không đủ — nếu danh sách tick dài, nó sẽ đẩy
+     CẢ HAI card giãn theo tick thay vì tick cuộn theo card đầu. Card đầu tự co
+     vừa content (flex-start), JS đo chiều cao card đầu rồi set cứng cho card 2
+     (xem syncRowPairHeights()) để card 2 cuộn nội bộ đúng bằng chiều cao đó. */
+  .row-pair { display: flex; gap: 20px; align-items: flex-start; }
+  .row-pair .card { flex: 1; min-width: 0; }
+  .row-pair .card:nth-child(2) { overflow: hidden; }
+  .row-pair .card:nth-child(2) .tick-box { flex: 1; min-height: 0; }
+
+  @media (max-width: 1024px) {
+    .wrap { width: 92%; }
+    .col-3, .col-4, .col-5, .col-6, .col-7, .col-8 { grid-column: span 12; }
+    .row-pair { flex-direction: column; }
+  }
+
+  .stat-row { display: flex; justify-content: space-between; padding: 7px 0; font-size: 13.5px; border-bottom: 1px solid var(--border); }
+  .stat-row:last-child { border-bottom: none; }
+  .stat-row .label { color: var(--text-muted); }
+  .stat-row .value { font-weight: 600; color: var(--text-bright); }
+  .value.pos { color: var(--green); text-shadow: var(--glow); }
+  .value.neg { color: var(--red); text-shadow: var(--glow-red); }
+
+  .field { margin-bottom: 14px; }
+  .field label { display: block; font-size: 12.5px; color: var(--text-muted); margin-bottom: 6px; }
+  .field input, .field select {
+    width: 100%; padding: 9px 12px; border-radius: 8px; border: 1px solid var(--border);
+    background: #090D0A; color: var(--text); font-size: 14px;
+  }
+  .field input:focus, .field select:focus { outline: 2px solid var(--primary); outline-offset: 1px; }
+  .field-row { display: flex; gap: 12px; }
+  .field-row .field { flex: 1; }
+
+  .toggle-row { display: flex; align-items: center; justify-content: space-between; padding: 6px 0; font-size: 13.5px; }
+  .switch { position: relative; display: inline-block; width: 42px; height: 23px; cursor: pointer; flex-shrink: 0; }
+  .switch input { opacity: 0; width: 0; height: 0; }
+  .slider {
+    position: absolute; inset: 0; background: #16281A; border-radius: 999px; transition: background-color 200ms;
+  }
+  .slider::before {
+    content: ""; position: absolute; height: 17px; width: 17px; left: 3px; top: 3px;
+    background: #06110A; border-radius: 50%; transition: transform 200ms;
+  }
+  .switch input:checked + .slider { background: var(--green); box-shadow: none; }
+  .switch input:checked + .slider::before { transform: translateX(19px); background: #001A05; }
+  .switch input:focus-visible + .slider { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  th { color: var(--text-muted); font-weight: 500; font-size: 11px; text-transform: uppercase; letter-spacing: .03em; }
+  tbody tr:hover { background: var(--bg-card-hover); }
+  .table-scroll { max-height: 340px; overflow-y: auto; overflow-x: auto; }
+  .table-empty { color: var(--text-muted); font-size: 13px; padding: 16px 0; text-align: center; }
+
+  .log-box {
+    background: #080B09; border: 1px solid var(--border); border-radius: 8px;
+    padding: 12px 14px; height: 260px; overflow-y: auto; font-size: 12px; line-height: 1.6;
+    white-space: pre-wrap; word-break: break-all; color: var(--text);
+  }
+  .tick-box { overflow-y: auto; }
+  .tick-entry { padding: 6px 0; border-bottom: 1px solid var(--border); }
+  .tick-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 12px; }
+  .tick-row .t { color: var(--text-muted); flex-shrink: 0; }
+  .tick-row .score { color: var(--text-bright); font-weight: 600; }
+  .tick-reason { font-size: 11px; color: var(--text-muted); margin-top: 2px; white-space: normal; }
+
+  .pill { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 11px; font-weight: 700; }
+  .pill.BUY, .pill.SHORT { background: rgba(95,191,122,.18); color: var(--green); }
+  .pill.SELL { background: rgba(227,123,123,.18); color: var(--red); }
+  .pill.HOLD { background: rgba(76,140,88,.2); color: var(--text-muted); }
+  .pill.WATCH { background: rgba(0,229,255,.15); color: var(--cta); }
+  .pill.IGNORE { background: rgba(76,140,88,.12); color: var(--text-muted); }
+
+  .save-msg { font-size: 12.5px; margin-top: 8px; min-height: 18px; }
+  .save-msg.ok { color: var(--green); }
+  .save-msg.err { color: var(--red); }
+
+  .chart-wrap { height: 260px; }
+
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; animation: none !important; }
+  }
+</style>
+</head>
+<body>
+
+<div id="login-screen">
+  <div class="login-card">
+    <h1>Paper Trading Dashboard</h1>
+    <p>Nhập mật khẩu để tiếp tục</p>
+    <input type="password" id="login-password" placeholder="Mật khẩu" autocomplete="current-password">
+    <div id="login-error"></div>
+    <button class="btn primary" id="login-btn" style="width:100%">Đăng nhập</button>
+  </div>
+</div>
+
+<div id="app">
+  <div class="wrap">
+    <header class="topbar">
+      <div>
+        <h1>Paper Trading</h1>
+        <div class="sub" id="strategy-label-sub">—</div>
+      </div>
+      <div style="display:flex; align-items:center; gap:14px;">
+        <div class="badges" id="status-badges"></div>
+        <button class="btn small" id="logout-btn">Đăng xuất</button>
+      </div>
+    </header>
+
+    <div class="grid">
+
+      <!-- Trạng thái + Cron (merged) -->
+      <section class="card col-4">
+        <h2>
+          <span>Trạng thái &amp; Cron</span>
+          <span class="live-badge"><span class="live-dot"></span>LIVE</span>
+        </h2>
+        <div id="status-body"><div class="table-empty">Đang tải...</div></div>
+
+        <div style="margin-top:14px; padding-top:12px; border-top:1px solid var(--border);">
+          <div class="toggle-row">
+            <span>Bật/tắt cron</span>
+            <label class="switch">
+              <input type="checkbox" id="cron-toggle">
+              <span class="slider"></span>
+            </label>
+          </div>
+          <div class="toggle-row">
+            <span>Kill Switch (tạm dừng vào lệnh)</span>
+            <label class="switch">
+              <input type="checkbox" id="kill-switch-toggle">
+              <span class="slider"></span>
+            </label>
+          </div>
+          <div class="save-msg" id="kill-switch-msg"></div>
+          <div class="field" style="margin-top:12px">
+            <label for="cron-minutes">Tần suất (phút)</label>
+            <div style="display:flex; gap:8px;">
+              <input type="number" id="cron-minutes" min="1" max="1440" step="1" style="flex:1">
+              <button class="btn small" id="cron-save-btn">Lưu</button>
+            </div>
+          </div>
+          <div class="save-msg" id="cron-msg"></div>
+          <div class="stat-row" style="margin-top:8px">
+            <span class="label">Lần chạy tiếp theo</span>
+            <span class="value mono" id="next-run-countdown">—</span>
+          </div>
+          <button class="btn cta" id="run-now-btn" style="width:100%; margin-top:10px">Chạy ngay</button>
+          <div class="save-msg" id="run-now-msg"></div>
+        </div>
+      </section>
+
+      <!-- Score breakdown + Live tick feed: cặp đôi tự khớp chiều cao với nhau
+           (Tick theo Score), độc lập với card Cron bên cạnh -->
+      <div class="col-8 row-pair">
+        <section class="card">
+          <h2>
+            <span>Tính score</span>
+            <span class="h2-right"><span class="live-badge" id="score-live-badge"><span class="live-dot"></span>LIVE</span><span class="hint" id="score-ts-hint"></span></span>
+          </h2>
+          <div id="score-body"><div class="table-empty">Đang tải...</div></div>
+        </section>
+
+        <section class="card">
+          <h2>
+            <span>Tick gần đây</span>
+            <span class="h2-right"><span class="live-badge" id="tick-live-badge"><span class="live-dot"></span>LIVE</span><span class="hint">mỗi poll</span></span>
+          </h2>
+          <div class="tick-box" id="tick-box"><div class="table-empty">Đang tải...</div></div>
+        </section>
+      </div>
+
+      <!-- Vị thế đang mở: chỉ hiện khi có lệnh, đứng cùng hàng với Cấu hình
+           chiến lược (chia đôi 6+6) — xem toggleOpenPositionLayout() -->
+      <section class="card col-6" id="position-card" style="display:none">
+        <h2>
+          <span>Vị thế đang mở</span>
+          <span class="live-badge"><span class="live-dot"></span>LIVE</span>
+        </h2>
+        <div id="position-body"><div class="table-empty">Đang tải...</div></div>
+      </section>
+
+      <!-- Config editor -->
+      <section class="card col-12" id="config-card">
+        <h2><span>Cấu hình chiến lược</span><span class="hint">config/paper.env</span></h2>
+        <div class="field-row">
+          <div class="field">
+            <label for="cfg-exchange">Sàn lấy giá + trade</label>
+            <select id="cfg-exchange">
+              <option value="okx">OKX</option>
+              <option value="binance">Binance</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="cfg-timeframe">Timeframe</label>
+            <input type="text" id="cfg-timeframe">
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label for="cfg-mtf">Multi-TF (phẩy)</label>
+            <input type="text" id="cfg-mtf" placeholder="1h,2h,4h">
+          </div>
+          <div class="field">
+            <label for="cfg-label">Nhãn Telegram</label>
+            <input type="text" id="cfg-label">
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label for="cfg-buy">Buy threshold</label>
+            <input type="number" step="0.01" id="cfg-buy">
+          </div>
+          <div class="field">
+            <label for="cfg-watch">Watch threshold</label>
+            <input type="number" step="0.01" id="cfg-watch">
+          </div>
+          <div class="field">
+            <label for="cfg-pullback">Pullback ATR buffer</label>
+            <input type="number" step="0.01" id="cfg-pullback">
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label for="cfg-window">Monitor window (phút)</label>
+            <input type="number" step="0.5" id="cfg-window">
+          </div>
+          <div class="field">
+            <label for="cfg-poll">Monitor poll (giây)</label>
+            <input type="number" step="1" id="cfg-poll">
+          </div>
+        </div>
+        <button class="btn cta" id="config-save-btn">Lưu cấu hình</button>
+        <div class="save-msg" id="config-msg"></div>
+      </section>
+
+      <!-- Trade stats -->
+      <section class="card col-5">
+        <h2><span>Thống kê lệnh</span><span class="hint" id="trades-count-hint"></span></h2>
+        <div id="stats-body"><div class="table-empty">Đang tải...</div></div>
+      </section>
+
+      <!-- Equity curve -->
+      <section class="card col-7">
+        <h2><span>Equity curve</span><span class="hint">cộng dồn theo % lệnh đã đóng</span></h2>
+        <div class="chart-wrap"><canvas id="equity-chart"></canvas></div>
+      </section>
+
+      <!-- Trade history -->
+      <section class="card col-12">
+        <h2><span>Lịch sử lệnh BUY/SELL</span></h2>
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Trạng thái</th><th>Vào lệnh</th><th>Giá vào</th>
+                <th>Thoát lệnh</th><th>Giá ra</th><th>PnL %</th><th>Lý do thoát</th>
+              </tr>
+            </thead>
+            <tbody id="trades-tbody"></tbody>
+          </table>
+          <div class="table-empty" id="trades-empty" style="display:none">Chưa có lệnh nào.</div>
+        </div>
+      </section>
+
+      <!-- Log viewer -->
+      <section class="card col-12">
+        <h2>
+          <span>Log cron</span>
+          <span class="h2-right"><span class="live-badge"><span class="live-dot"></span>LIVE</span><span class="hint" id="log-path-hint"></span></span>
+        </h2>
+        <div class="log-box" id="log-box">Đang tải...</div>
+      </section>
+
+    </div>
+  </div>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let equityChart = null;
+
+async function api(path, opts) {
+  const res = await fetch(path, Object.assign({ headers: { 'Content-Type': 'application/json' } }, opts));
+  if (res.status === 401) { showLogin(); throw new Error('unauthorized'); }
+  return res.json();
+}
+
+function showLogin() {
+  $('login-screen').style.display = 'flex';
+  $('app').style.display = 'none';
+}
+function showApp() {
+  $('login-screen').style.display = 'none';
+  $('app').style.display = 'block';
+  loadAll();
+  startPolling();
+}
+
+$('login-btn').addEventListener('click', doLogin);
+$('login-password').addEventListener('keydown', (e) => { if (e.key === 'Enter') doLogin(); });
+async function doLogin() {
+  const password = $('login-password').value;
+  $('login-error').textContent = '';
+  const res = await fetch('/api/login', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ password }),
+  });
+  const data = await res.json();
+  if (data.ok) { showApp(); } else { $('login-error').textContent = data.error || 'Sai mật khẩu'; }
+}
+
+$('logout-btn').addEventListener('click', async () => {
+  await fetch('/api/logout', { method: 'POST' });
+  showLogin();
+});
+
+function fmtPct(v) {
+  if (v === null || v === undefined) return '—';
+  const s = (v >= 0 ? '+' : '') + v.toFixed(2) + '%';
+  return s;
+}
+function pctClass(v) { return v > 0 ? 'pos' : (v < 0 ? 'neg' : ''); }
+function fmtMoney(v) {
+  if (v === null || v === undefined) return '—';
+  return v.toFixed(2) + ' USD';
+}
+function fmtMoneySigned(v) {
+  if (v === null || v === undefined) return '—';
+  return (v >= 0 ? '+' : '') + v.toFixed(2) + ' USD';
+}
+function fmtTime(iso) {
+  if (!iso) return '—';
+  try { return new Date(iso).toLocaleString('vi-VN', { hour12: false }); } catch (e) { return iso; }
+}
+
+async function loadStatus() {
+  const s = await api('/api/status');
+  $('strategy-label-sub').textContent = `Symbol: ${s.position?.symbol || 'BTC/USDT'} · Cron mỗi ${s.cron.minutes} phút`;
+
+  const badges = [];
+  badges.push(`<span class="badge ${s.monitoring?.active ? 'ok' : 'warn'}"><span class="dot"></span>${s.monitoring?.active ? 'Đang giám sát' : 'Không giám sát'}</span>`);
+  badges.push(`<span class="badge ${s.position.status === 'IN_POSITION' ? 'ok' : ''}"><span class="dot"></span>${s.position.status}</span>`);
+  if (s.kill_switch_on) badges.push('<span class="badge danger"><span class="dot"></span>Kill switch BẬT</span>');
+  badges.push(`<span class="badge ${s.cron.enabled ? 'ok' : 'warn'}"><span class="dot"></span>Cron ${s.cron.enabled ? 'đang chạy' : 'đã tắt'}</span>`);
+  if (s.trading_halted_today) badges.push('<span class="badge danger"><span class="dot"></span>Đã chạm daily loss limit</span>');
+  $('status-badges').innerHTML = badges.join('');
+
+  const p = s.position;
+  let posRows = `<div class="stat-row"><span class="label">Trạng thái</span><span class="value accent">${p.status}</span></div>`;
+  if (p.status === 'IN_POSITION') {
+    posRows += `
+      <div class="stat-row"><span class="label">Giá vào</span><span class="value mono">${p.entry_price ?? '—'}</span></div>
+      <div class="stat-row"><span class="label">Thời điểm vào</span><span class="value mono">${fmtTime(p.entry_time)}</span></div>
+      <div class="stat-row"><span class="label">Stop loss</span><span class="value mono">${p.stop_price ?? '—'}</span></div>
+      <div class="stat-row"><span class="label">Take profit</span><span class="value mono">${p.take_profit_price ?? '—'}</span></div>`;
+  }
+  posRows += `
+    <div class="stat-row"><span class="label">PnL hôm nay</span><span class="value mono ${pctClass(s.daily_pnl_pct)}">${fmtPct(s.daily_pnl_pct)}</span></div>
+    <div class="stat-row"><span class="label">Max drawdown</span><span class="value mono">${fmtPct(s.max_drawdown_pct)}</span></div>
+    <div class="stat-row"><span class="label">Lần chạy cuối</span><span class="value mono">${fmtTime(s.run_health.last_run_at)}</span></div>`;
+  $('status-body').innerHTML = posRows;
+
+  renderPositionCard(p, s.latest_tick);
+  setLiveBadge('score-live-badge', s.monitoring?.active);
+  setLiveBadge('tick-live-badge', s.monitoring?.active);
+
+  $('kill-switch-toggle').checked = s.kill_switch_on;
+  $('cron-toggle').checked = s.cron.enabled;
+  $('cron-minutes').value = s.cron.minutes;
+  nextRunAt = s.cron.next_run_at ? new Date(s.cron.next_run_at) : null;
+  updateCountdown();
+}
+
+// "Tính score"/"Tick gần đây" chỉ thật sự LIVE khi có run.py đang giữ monitoring
+// lock (đang trong cửa sổ theo dõi liên tục) — cron bật nhưng đợi tới lần trigger
+// kế tiếp thì badge phải báo IDLE, không hiện LIVE giả.
+function setLiveBadge(id, active) {
+  const el = $(id);
+  el.innerHTML = `<span class="live-dot"></span>${active ? 'LIVE' : 'IDLE'}`;
+  el.classList.toggle('idle', !active);
+}
+
+// Card "Vị thế đang mở" chỉ hiện khi có lệnh IN_POSITION, đứng cùng hàng với
+// Cấu hình chiến lược (chia 6+6); không có lệnh thì Cấu hình trở lại full width.
+function renderPositionCard(position, latestTick) {
+  const open = position.status === 'IN_POSITION';
+  $('position-card').style.display = open ? 'flex' : 'none';
+  $('config-card').classList.toggle('col-6', open);
+  $('config-card').classList.toggle('col-12', !open);
+  if (!open) return;
+
+  const entryPrice = position.entry_price;
+  const currentPrice = latestTick?.price ?? null;
+  const pnlPct = (entryPrice && currentPrice) ? (currentPrice - entryPrice) / entryPrice * 100 : null;
+  const pnlUsd = (position.size_usd && pnlPct !== null) ? position.size_usd * pnlPct / 100 : null;
+
+  $('position-body').innerHTML = `
+    <div class="stat-row"><span class="label">Giá vào lệnh</span><span class="value mono">${entryPrice ?? '—'}</span></div>
+    <div class="stat-row"><span class="label">Score lúc vào</span><span class="value mono">${position.entry_score ?? '—'}</span></div>
+    <div class="stat-row"><span class="label">Giá hiện tại</span><span class="value mono">${currentPrice ?? '—'}</span></div>
+    <div class="stat-row"><span class="label">Volume lệnh</span><span class="value mono">${fmtMoney(position.size_usd)}</span></div>
+    <div class="stat-row"><span class="label">Lãi/Lỗ tạm tính</span><span class="value mono ${pctClass(pnlPct)}">${fmtPct(pnlPct)} · ${fmtMoneySigned(pnlUsd)}</span></div>`;
+}
+
+let nextRunAt = null;
+function updateCountdown() {
+  const el = $('next-run-countdown');
+  if (!nextRunAt) { el.textContent = 'Cron đang tắt'; return; }
+  const diffMs = nextRunAt.getTime() - Date.now();
+  if (diffMs <= 0) { el.textContent = 'Đang trigger...'; return; }
+  const totalSec = Math.floor(diffMs / 1000);
+  const m = Math.floor(totalSec / 60);
+  const sec = totalSec % 60;
+  el.textContent = `${m} phút ${String(sec).padStart(2, '0')} giây`;
+}
+setInterval(updateCountdown, 1000);
+
+$('run-now-btn').addEventListener('click', async () => {
+  $('run-now-btn').disabled = true;
+  const res = await api('/api/run-now', { method: 'POST' });
+  $('run-now-msg').textContent = res.ok ? res.message : 'Lỗi khi trigger.';
+  $('run-now-msg').className = 'save-msg ' + (res.ok ? 'ok' : 'err');
+  setTimeout(() => { $('run-now-btn').disabled = false; }, 5000);
+  setTimeout(() => { loadLogs(); loadTicks(); }, 3000);
+});
+
+$('kill-switch-toggle').addEventListener('change', async (e) => {
+  const on = e.target.checked;
+  const res = await api('/api/kill-switch', { method: 'POST', body: JSON.stringify({ on }) });
+  $('kill-switch-msg').textContent = res.ok ? 'Đã cập nhật.' : 'Lỗi.';
+  $('kill-switch-msg').className = 'save-msg ' + (res.ok ? 'ok' : 'err');
+  loadStatus();
+});
+
+$('cron-toggle').addEventListener('change', async (e) => {
+  await api('/api/cron/toggle', { method: 'POST', body: JSON.stringify({ enabled: e.target.checked }) });
+  loadStatus();
+});
+$('cron-save-btn').addEventListener('click', async () => {
+  const minutes = parseInt($('cron-minutes').value, 10);
+  const res = await api('/api/cron/frequency', { method: 'POST', body: JSON.stringify({ minutes }) });
+  $('cron-msg').textContent = res.error ? res.error : `Đã lưu — chạy mỗi ${res.minutes} phút.`;
+  $('cron-msg').className = 'save-msg ' + (res.error ? 'err' : 'ok');
+  loadStatus();
+});
+
+async function loadConfig() {
+  const data = await api('/api/config');
+  const c = data.values;
+  $('cfg-exchange').value = c.EXCHANGE_ID || 'okx';
+  $('cfg-timeframe').value = c.TIMEFRAME || '';
+  $('cfg-mtf').value = c.MTF_TIMEFRAMES || '';
+  $('cfg-buy').value = c.BUY_SCORE_THRESHOLD || '';
+  $('cfg-watch').value = c.WATCH_SCORE_THRESHOLD || '';
+  $('cfg-pullback').value = c.PULLBACK_ATR_BUFFER || '';
+  $('cfg-label').value = c.STRATEGY_LABEL || '';
+  $('cfg-window').value = c.MONITOR_WINDOW_MINUTES || '';
+  $('cfg-poll').value = c.MONITOR_POLL_SECONDS || '';
+}
+
+$('config-save-btn').addEventListener('click', async () => {
+  const payload = {
+    EXCHANGE_ID: $('cfg-exchange').value,
+    TIMEFRAME: $('cfg-timeframe').value.trim(),
+    MTF_TIMEFRAMES: $('cfg-mtf').value.trim(),
+    BUY_SCORE_THRESHOLD: $('cfg-buy').value,
+    WATCH_SCORE_THRESHOLD: $('cfg-watch').value,
+    PULLBACK_ATR_BUFFER: $('cfg-pullback').value,
+    STRATEGY_LABEL: $('cfg-label').value.trim(),
+    MONITOR_WINDOW_MINUTES: $('cfg-window').value,
+    MONITOR_POLL_SECONDS: $('cfg-poll').value,
+  };
+  const res = await api('/api/config', { method: 'POST', body: JSON.stringify(payload) });
+  $('config-msg').textContent = res.ok ? 'Đã lưu — áp dụng từ lần chạy cron kế tiếp.' : ('Lỗi: ' + JSON.stringify(res.errors || {}));
+  $('config-msg').className = 'save-msg ' + (res.ok ? 'ok' : 'err');
+});
+
+async function loadTrades() {
+  const data = await api('/api/trades');
+  $('trades-count-hint').textContent = `${data.n_closed} đã đóng · ${data.n_open} đang mở`;
+
+  const stats = data.stats;
+  const hasData = data.n_closed > 0;
+  $('stats-body').innerHTML = hasData ? `
+    <div class="stat-row"><span class="label">Win rate</span><span class="value">${stats.win_rate_pct ?? '—'}%</span></div>
+    <div class="stat-row"><span class="label">Total return (cộng dồn %)</span><span class="value ${pctClass(stats.total_return_pct)}">${fmtPct(stats.total_return_pct)}</span></div>
+    <div class="stat-row"><span class="label">Max drawdown</span><span class="value">${fmtPct(stats.max_drawdown_pct)}</span></div>
+    <div class="stat-row"><span class="label">Sharpe (per-trade, xấp xỉ)</span><span class="value">${stats.sharpe_ratio ?? '—'}</span></div>
+  ` : '<div class="table-empty">Chưa có lệnh đóng — chưa đủ dữ liệu.</div>';
+
+  const tbody = $('trades-tbody');
+  tbody.innerHTML = '';
+  $('trades-empty').style.display = data.trades.length ? 'none' : 'block';
+  for (const t of data.trades) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><span class="pill ${t.status === 'OPEN' ? 'BUY' : 'SELL'}">${t.status}</span></td>
+      <td class="mono">${fmtTime(t.entry_time)}</td>
+      <td class="mono">${t.entry_price ?? '—'}</td>
+      <td class="mono">${fmtTime(t.exit_time)}</td>
+      <td class="mono">${t.exit_price ?? '—'}</td>
+      <td class="mono ${pctClass(t.pnl_pct)}">${t.pnl_pct !== undefined && t.pnl_pct !== null ? fmtPct(t.pnl_pct) : '—'}</td>
+      <td>${t.exit_reason || '—'}</td>`;
+    tbody.appendChild(tr);
+  }
+
+  const closed = data.trades.filter(t => t.status === 'CLOSED' && t.pnl_pct !== null && t.pnl_pct !== undefined).reverse();
+  let equity = 100;
+  const points = [{ x: 0, y: equity }];
+  closed.forEach((t, i) => { equity *= (1 + t.pnl_pct / 100); points.push({ x: i + 1, y: equity }); });
+
+  const ctx = document.getElementById('equity-chart');
+  const chartData = {
+    labels: points.map(p => p.x),
+    datasets: [{
+      label: 'Equity (base 100)', data: points.map(p => p.y),
+      borderColor: '#5FBF7A', backgroundColor: 'rgba(95,191,122,0.10)',
+      fill: true, tension: 0.25, pointRadius: 0, borderWidth: 2,
+    }],
+  };
+  if (equityChart) {
+    equityChart.data = chartData; equityChart.update();
+  } else {
+    equityChart = new Chart(ctx, {
+      type: 'line', data: chartData,
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { title: { display: true, text: 'Số lệnh', color: '#5F7A68' }, ticks: { color: '#5F7A68' }, grid: { color: '#263029' } },
+          y: { ticks: { color: '#5F7A68' }, grid: { color: '#263029' } },
+        },
+      },
+    });
+  }
+}
+
+async function loadLogs() {
+  const data = await api('/api/logs?lines=300');
+  $('log-path-hint').textContent = data.path ? data.path.split('/').pop() : '';
+  const box = $('log-box');
+  const atBottom = box.scrollTop + box.clientHeight >= box.scrollHeight - 10;
+  box.textContent = data.lines.length ? data.lines.join('\n') : '(chưa có log)';
+  if (atBottom) box.scrollTop = box.scrollHeight;
+}
+
+async function loadTicks() {
+  const data = await api('/api/ticks?limit=40');
+  const box = $('tick-box');
+  if (!data.ticks.length) { box.innerHTML = '<div class="table-empty">Chưa có tick nào.</div>'; return; }
+  box.innerHTML = data.ticks.map(t => {
+    const p = t.payload;
+    const pullbackTxt = (p.pullback_ok === null || p.pullback_ok === undefined) ? ''
+      : (p.pullback_ok ? ' · pullback: trong vùng' : ' · pullback: chưa hồi về vùng');
+    const detail = [p.reason, p.regime ? `regime: ${p.regime}` : ''].filter(Boolean).join(' · ') + pullbackTxt;
+    return `
+    <div class="tick-entry">
+      <div class="tick-row">
+        <span class="t mono">${fmtTime(t.ts)}</span>
+        <span class="mono">${p.price ?? '—'}</span>
+        <span class="mono score">${p.total_score ?? '—'}</span>
+        <span class="pill ${p.action || ''}">${p.action || '—'}</span>
+      </div>
+      ${detail ? `<div class="tick-reason">${detail}</div>` : ''}
+    </div>`;
+  }).join('');
+}
+
+async function loadScoreDetail() {
+  const s = await api('/api/score-detail');
+  const box = $('score-body');
+  if (!s.available) { box.innerHTML = '<div class="table-empty">Chưa có dữ liệu.</div>'; return; }
+  $('score-ts-hint').textContent = fmtTime(s.ts);
+
+  const weightRows = Object.entries(s.layer_scores).map(([layer, score]) => {
+    const weight = s.weights[layer];
+    return `<div class="stat-row"><span class="label">${layer} (${weight}%)</span><span class="value mono">${score}</span></div>`;
+  }).join('');
+
+  const techRows = Object.entries(s.technical_breakdown)
+    .map(([k, v]) => `<div class="stat-row"><span class="label">${k}</span><span class="value mono ${v > 0 ? 'pos' : ''}">${v}</span></div>`)
+    .join('');
+
+  box.innerHTML = `
+    <div class="stat-row"><span class="label">Total score</span><span class="value mono">${s.total_score}</span></div>
+    <div class="stat-row"><span class="label">Regime</span><span class="value accent">${s.regime.label}</span></div>
+    <div class="stat-row"><span class="label">Ngưỡng BUY / WATCH</span><span class="value mono">${s.buy_threshold} / ${s.watch_threshold}</span></div>
+    <div style="margin-top:10px; font-size:11px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.03em;">Theo lớp (weight)</div>
+    ${weightRows}
+    <div style="margin-top:10px; font-size:11px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.03em;">Chi tiết Technical</div>
+    ${techRows}
+  `;
+  syncRowPairHeights();
+}
+
+function syncRowPairHeights() {
+  requestAnimationFrame(() => {
+    document.querySelectorAll('.row-pair').forEach((pair) => {
+      const cards = pair.querySelectorAll(':scope > .card');
+      if (cards.length < 2) return;
+      cards[1].style.height = 'auto';
+      const h = cards[0].getBoundingClientRect().height;
+      cards[1].style.height = h + 'px';
+    });
+  });
+}
+window.addEventListener('resize', syncRowPairHeights);
+
+function loadAll() {
+  loadStatus(); loadConfig(); loadTrades(); loadLogs(); loadTicks(); loadScoreDetail();
+}
+
+let pollTimer = null;
+function startPolling() {
+  if (pollTimer) clearInterval(pollTimer);
+  pollTimer = setInterval(() => { loadStatus(); loadLogs(); loadTicks(); loadScoreDetail(); }, 10000);
+  setInterval(() => { loadTrades(); }, 30000);
+}
+
+(async function init() {
+  const s = await (await fetch('/api/session')).json();
+  if (s.authed) showApp(); else showLogin();
+})();
+</script>
+</body>
+</html>

@@ -1,15 +1,15 @@
-"""Collector WebSocket 24/7 — Trade Stream + Liquidation (xem plan-02.md mục 5, 8b).
+"""Collector WebSocket 24/7 — Trade Stream + Liquidation.
 
 Chạy như 1 process riêng, độc lập với pipeline cron ở `run.py`:
     python -m src.collector_ws
 
-Chỉ 2 luồng này cần WebSocket (continuous stream, xem mục 5):
+Chỉ 2 luồng này cần WebSocket (continuous stream):
 - Trade Stream: REST poll sẽ bỏ sót trade xảy ra giữa 2 lần gọi → CVD tính sai.
 - Liquidation: không có REST endpoint tương đương đủ tốt cho luồng này.
 
 Các dữ liệu còn lại (OHLCV, Order Book, Funding, OI) vẫn REST polling trong
 `run.py` — không cần WebSocket. Dùng `ccxt.pro` (đã bundle miễn phí trong ccxt
-hiện tại — khác với ghi chú "CCXT Pro trả phí" ở Phase 1, xác nhận lại khi build).
+hiện tại, không phải bản trả phí riêng).
 """
 import asyncio
 import sys
@@ -43,7 +43,7 @@ def _make_exchange():
 async def _watch_trades_loop(exchange, symbol):
     """Tích luỹ CVD từ trade stream thật, flush định kỳ vào `kv_store`.
 
-    Reconnect có backoff (mục 8b, rủi ro "WebSocket rớt kết nối"); đánh dấu
+    Reconnect có backoff (chống rủi ro "WebSocket rớt kết nối"); đánh dấu
     WS_GAP_START/WS_GAP_END vào event_log để Feature Engine biết loại trừ
     khoảng mất kết nối thay vì tính CVD nhầm trên dữ liệu thiếu.
     """
@@ -70,7 +70,7 @@ async def _watch_trades_loop(exchange, symbol):
                     sell_vol += amount
 
             # Tick giá thật, ghi ngay mỗi batch — dùng cho cửa sổ theo dõi liên tục
-            # của run.py (mục 5d), không đợi chu kỳ flush CVD 30s.
+            # của run.py, không đợi chu kỳ flush CVD 30s.
             last_price = trades[-1].get("price") if trades else None
             if last_price is not None:
                 state_store.set_kv(f"last_tick_price_{symbol}", last_price)

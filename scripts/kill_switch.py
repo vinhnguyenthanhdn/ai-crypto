@@ -1,4 +1,4 @@
-"""CLI bật/tắt Kill Switch thủ công (xem plan-02.md mục 8 Risk Engine).
+"""CLI bật/tắt Kill Switch thủ công (Risk Engine).
 
 Dùng khi: hệ thống tự bật kill switch do chạm Max Drawdown, hoặc muốn dừng
 tay hệ thống vì lý do khác. Tắt kill switch là quyết định thủ công, hệ thống

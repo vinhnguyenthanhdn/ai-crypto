@@ -1,13 +1,13 @@
 """Entrypoint gọi bởi cron/launchd — mỗi lần chạy là 1 process độc lập.
 
-Pipeline (xem plan-02.md, phần Tool/Skill breakdown):
+Pipeline:
 fetch_market -> indicators -> orderflow -> derivatives -> regime -> sentiment
 -> decision -> report (LLM, chỉ khi BUY/SELL) -> telegram.notify
 
-Mục 5d: cron kích hoạt mỗi x phút (launchd/cron, ngoài code này), nhưng process
-không thoát ngay — mở cửa sổ theo dõi liên tục `MONITOR_WINDOW_MINUTES` phút,
-trong đó đọc tick giá thật từ `collector_ws.py` (qua `state_store.get_last_tick`)
-để đánh giá decide_entry/decide_exit nhiều lần thay vì 1 snapshot duy nhất.
+Cron kích hoạt mỗi x phút (launchd/cron, ngoài code này), nhưng process không
+thoát ngay — mở cửa sổ theo dõi liên tục `MONITOR_WINDOW_MINUTES` phút, trong đó
+đọc tick giá thật từ `collector_ws.py` (qua `state_store.get_last_tick`) để đánh
+giá decide_entry/decide_exit nhiều lần thay vì 1 snapshot duy nhất.
 Indicator/score (OHLCV, order book, funding, OI...) vẫn chỉ tính 1 lần từ REST
 mỗi khi cron kích hoạt — chỉ riêng giá dùng để so khớp stop/take-profit/ngưỡng
 là được refresh theo tick trong cửa sổ.
@@ -23,11 +23,13 @@ from .engine import orderflow, derivatives, regime as regime_engine
 from .engine import sentiment_score, crossmarket_score, decision, risk
 from .notify import telegram, ai_report
 
-PRIMARY_TF = "5m"
-TIMEFRAMES = ("1m", "5m", "15m")
+PRIMARY_TF = config.TIMEFRAME
+TIMEFRAMES = config.MTF_TIMEFRAMES
 
 
 def _notify(text):
+    if config.STRATEGY_LABEL:
+        text = f"[{config.STRATEGY_LABEL}] {text}"
     sent = telegram.send_message(text)
     if not sent:
         print(f"[telegram fallback] {text}")
@@ -47,8 +49,8 @@ def main():
 
 
 def _current_price(fallback_price):
-    """Tick giá thật từ collector_ws nếu có (mục 5d); fallback về giá REST đầu
-    cửa sổ nếu collector_ws chưa chạy/mất kết nối — không chặn pipeline."""
+    """Tick giá thật từ collector_ws nếu có; fallback về giá REST đầu cửa sổ
+    nếu collector_ws chưa chạy/mất kết nối — không chặn pipeline."""
     tick = state_store.get_last_tick(config.SYMBOL)
     return tick if tick is not None else fallback_price
 
@@ -65,7 +67,7 @@ def _handle_exit(position, price, total_score, layer_scores, primary_with_indica
         min_hold_satisfied=_min_hold_satisfied(position["entry_time"]),
     )
     if not should_exit:
-        return False
+        return False, exit_reason
     pnl_pct = risk.compute_pnl_pct(position["entry_price"], price)
     trade_id = state_store.make_trade_id(position["symbol"], position["entry_time"])
     state_store.add_daily_pnl(pnl_pct)
@@ -82,12 +84,13 @@ def _handle_exit(position, price, total_score, layer_scores, primary_with_indica
         f"{exit_reason} — P&L {pnl_pct}%",
     )
     _notify(report)
-    return True
+    return True, exit_reason
 
 
 def _handle_entry(price, total_score, regime_label, trading_halted, primary_with_indicators, raw_features, layer_scores):
     kill_switch_on = state_store.is_kill_switch_on()
     cooldown_remaining = state_store.cooldown_remaining_seconds(config.COOLDOWN_MINUTES)
+    pullback_ok = technical.pullback_ok(primary_with_indicators, -1, "long", current_price=price)
     action, reason = decision.decide_entry(
         total_score,
         regime_label,
@@ -95,6 +98,7 @@ def _handle_entry(price, total_score, regime_label, trading_halted, primary_with
         kill_switch_on=kill_switch_on,
         kill_switch_reason=state_store.get_kill_switch_reason(),
         cooldown_remaining_seconds=cooldown_remaining,
+        pullback_ok=pullback_ok,
     )
 
     if action == "IGNORE" and (kill_switch_on or cooldown_remaining > 0 or trading_halted):
@@ -103,13 +107,13 @@ def _handle_entry(price, total_score, regime_label, trading_halted, primary_with
         state_store.log_event("SIGNAL_GENERATED", {"decision": action, "reason": reason, "total_score": total_score})
 
     if action != "BUY":
-        return action, reason, False
+        return action, reason, False, pullback_ok
 
     atr = float(primary_with_indicators.iloc[-1]["atr"])
     plan = risk.compute_position_plan(price, atr)
-    # Cost gate (xem docs/research-technical-signal-edge.md mục 6.1): biến động quá
-    # nhỏ so với chi phí giao dịch thì lệnh lỗ ngay cả khi chạm đúng Take Profit —
-    # huỷ tín hiệu ở đây thay vì để Risk Engine cấp size cho một lệnh không thể lãi.
+    # Cost gate: biến động quá nhỏ so với chi phí giao dịch thì lệnh lỗ ngay cả khi
+    # chạm đúng Take Profit — huỷ tín hiệu ở đây thay vì để Risk Engine cấp size
+    # cho một lệnh không thể lãi.
     if not plan["edge_viable"]:
         state_store.log_event("RISK_REJECTED", {
             "reason": plan["skip_reason"], "total_score": total_score,
@@ -124,6 +128,7 @@ def _handle_entry(price, total_score, regime_label, trading_halted, primary_with
         symbol=config.SYMBOL,
         entry_price=price,
         entry_time=entry_time,
+        entry_score=total_score,
         stop_price=plan["stop_price"],
         take_profit_price=plan["take_profit_price"],
         size_usd=plan["size_usd"],
@@ -149,7 +154,7 @@ def _handle_entry(price, total_score, regime_label, trading_halted, primary_with
         f"Size ${plan['size_usd']}",
     )
     _notify(report)
-    return action, reason, True
+    return action, reason, True, pullback_ok
 
 
 def _run_once():
@@ -172,10 +177,12 @@ def _run_once():
     tech_result = technical.compute_technical_score(df_by_tf, primary_tf=PRIMARY_TF)
     snapshot_price = tech_result["last_price"]
 
-    primary_with_indicators = technical.add_indicators(df_by_tf[PRIMARY_TF])
+    primary_raw_df = df_by_tf[PRIMARY_TF]
+    primary_with_indicators = technical.add_indicators(primary_raw_df)
     regime_result = regime_engine.classify_regime(primary_with_indicators)
+    mtf_agreement_ratio = tech_result["raw"]["mtf_agreement_ratio"]
 
-    # CVD ưu tiên lấy từ collector_ws.py (WS thật) thay REST snapshot khi có sẵn (mục 7b)
+    # CVD ưu tiên lấy từ collector_ws.py (WS thật) thay REST snapshot khi có sẵn
     ws_cvd = state_store.get_ws_cvd(config.SYMBOL)
     order_flow_result = orderflow.compute_order_flow_score(order_book, trades, ws_cvd=ws_cvd)
     derivatives_result = derivatives.compute_derivatives_score(funding_rate, open_interest, snapshot_price)
@@ -192,15 +199,15 @@ def _run_once():
     }
     total_score = decision.compute_total_score(layer_scores)
 
-    # Collector sàn thứ 2 (Binance, mục 5b) — chỉ để đối chiếu giá vào Feature Store,
+    # Collector sàn thứ 2 (Binance) — chỉ để đối chiếu giá vào Feature Store,
     # KHÔNG tham gia layer_scores/Rule Engine. Lỗi/None không chặn pipeline chính.
     binance_price = market.fetch_cross_exchange_price(config.SYMBOL)
     binance_price_diff_pct = (
         round((binance_price - snapshot_price) / snapshot_price * 100, 4) if binance_price else None
     )
 
-    # Feature Store + Raw Event (mục 5b/13.1-13.3): raw feature tách khỏi score, lưu mỗi
-    # lần chạy để train Entry Model (Phase 3) và làm nền Feature Lineage (mục 13.11).
+    # Feature Store + Raw Event: raw feature tách khỏi score, lưu mỗi lần chạy
+    # để train Entry Model và làm nền Feature Lineage.
     raw_features = {
         "technical": tech_result["raw"],
         "order_flow": order_flow_result["raw"],
@@ -212,40 +219,95 @@ def _run_once():
     }
     state_store.log_feature_snapshot(config.SYMBOL, snapshot_price, raw_features)
     state_store.log_event("FEATURE_UPDATED", {"total_score": total_score, "layer_scores": layer_scores})
+    # Chi tiết "tính score như nào" (mục Logging, phát hiện 2026-08-05: chỉ log
+    # total_score là không đủ để soi lại tại sao ra quyết định đó) — ghi rõ từng
+    # thành phần góp vào total_score (breakdown Technical theo indicator, Regime
+    # theo ADX/ATR) 1 lần mỗi cron activation, vì các số này không đổi trong cửa
+    # sổ theo dõi (indicator theo nến đóng).
+    state_store.log_event("SCORE_COMPUTED", {
+        "total_score": total_score,
+        "layer_scores": layer_scores,
+        "weights": config.WEIGHTS,
+        "technical_breakdown": tech_result["breakdown"],
+        "regime": {"label": regime_result["label"], "raw": regime_result["raw"]},
+        "buy_threshold": config.BUY_SCORE_THRESHOLD,
+        "watch_threshold": config.WATCH_SCORE_THRESHOLD,
+    })
 
     trading_halted = state_store.is_trading_halted_today()
 
-    # Max Drawdown (mục 8 Risk Engine): vượt ngưỡng thì tự bật Kill Switch, không tự tắt lại
+    # Max Drawdown (Risk Engine): vượt ngưỡng thì tự bật Kill Switch, không tự tắt lại
     # — cần người kiểm tra và tắt thủ công (xem scripts/kill_switch.py) trước khi trade tiếp.
     max_dd = state_store.get_max_drawdown_pct()
     if max_dd >= config.MAX_DRAWDOWN_PCT and not state_store.is_kill_switch_on():
         state_store.set_kill_switch(True, reason=f"Max drawdown {max_dd}% >= ngưỡng {config.MAX_DRAWDOWN_PCT}%")
 
-    # Cửa sổ theo dõi liên tục (mục 5d): indicator/score ở trên tính 1 lần, nhưng
-    # decide_entry/decide_exit được đánh giá lại mỗi MONITOR_POLL_SECONDS bằng tick
-    # giá thật, trong suốt MONITOR_WINDOW_MINUTES — thay vì chỉ 1 lần rồi thoát.
+    # Cửa sổ theo dõi liên tục. Stop Loss/Take Profit (giá so trực tiếp, trong
+    # decide_exit) và vị trí giá so vùng pullback (trong decide_entry) đã nhận
+    # `price` tươi mỗi poll từ trước.
+    #
+    # Score sống theo tick: lớp Technical (EMA/RSI/MACD/ADX/Supertrend/VWAP) được
+    # TÍNH LẠI mỗi poll, coi giá tick là giá đóng cửa tạm thời của nến ĐANG hình
+    # thành — dùng lại đúng `technical.add_indicators()`/`score_from_indicators()`
+    # trên 1 bản copy dataframe đã chỉnh close/high/low của nến cuối, không phải
+    # công thức rời rạc tự chế. `live_total_score` này (không phải total_score
+    # đóng băng) được dùng để RA QUYẾT ĐỊNH BUY/SELL thật.
+    #
+    # 5 lớp còn lại (order_flow/derivatives/cross_market/sentiment) + regime vẫn
+    # đóng băng theo lần fetch REST đầu `_run_once` — dữ liệu gốc của chúng
+    # (order book, funding, tin tức...) không đổi theo tick giây, recompute mỗi
+    # 5s sẽ phải gọi lại API ~60 lần/cửa sổ mà không thu được gì mới.
+    #
+    # CẢNH BÁO QUAN TRỌNG: đây là hành vi khác với backtest — backtest luôn dùng
+    # score đóng băng theo nến đóng (không có dữ liệu tick lịch sử để mô phỏng
+    # "giữa nến"). Paper Trading từ đây không còn kiểm chứng đúng chiến lược đã
+    # backtest nữa — đang chạy 1 biến thể phản ứng theo tick, CHƯA được backtest
+    # xác nhận. Mỗi poll đều ghi MARKET_TICK để quan sát; log_signal chỉ ghi khi
+    # action đổi, tránh spam signal_log.
     window_deadline = time.monotonic() + config.MONITOR_WINDOW_MINUTES * 60
     last_logged_action = None
 
     while True:
         price = _current_price(snapshot_price)
         position = state_store.get_position_state()
+        tick_pullback_ok = None
+
+        live_df = primary_raw_df.copy()
+        last_idx = live_df.index[-1]
+        live_df.loc[last_idx, "close"] = price
+        live_df.loc[last_idx, "high"] = max(live_df.loc[last_idx, "high"], price)
+        live_df.loc[last_idx, "low"] = min(live_df.loc[last_idx, "low"], price)
+        live_enriched = technical.add_indicators(live_df)
+        live_tech = technical.score_from_indicators(live_enriched, idx=-1, agreement_ratio=mtf_agreement_ratio)
+        live_layer_scores = {**layer_scores, "technical": live_tech["total"]}
+        live_total_score = decision.compute_total_score(live_layer_scores)
 
         if position["status"] == "IN_POSITION":
-            exited = _handle_exit(position, price, total_score, layer_scores, primary_with_indicators)
+            exited, reason = _handle_exit(position, price, live_total_score, live_layer_scores, live_enriched)
+            tick_status = "SELL" if exited else "HOLD"
             if exited:
                 last_logged_action = "SELL"
             elif last_logged_action != "HOLD":
-                state_store.log_signal(config.SYMBOL, price, "HOLD", total_score, layer_scores, "Đang theo dõi vị thế mở")
+                state_store.log_signal(config.SYMBOL, price, "HOLD", live_total_score, live_layer_scores, "Đang theo dõi vị thế mở")
                 last_logged_action = "HOLD"
         else:
-            action, reason, entered = _handle_entry(
-                price, total_score, regime_result["label"], trading_halted,
-                primary_with_indicators, raw_features, layer_scores,
+            action, reason, entered, tick_pullback_ok = _handle_entry(
+                price, live_total_score, regime_result["label"], trading_halted,
+                live_enriched, raw_features, live_layer_scores,
             )
+            tick_status = action
             if action != last_logged_action:
-                state_store.log_signal(config.SYMBOL, price, action, total_score, layer_scores, reason)
+                state_store.log_signal(config.SYMBOL, price, action, live_total_score, live_layer_scores, reason)
                 last_logged_action = action
+
+        state_store.log_event("MARKET_TICK", {
+            "price": price, "position_status": position["status"], "action": tick_status,
+            "reason": reason, "total_score": live_total_score, "confirmed_total_score": total_score,
+            "regime": regime_result["label"], "pullback_ok": tick_pullback_ok,
+        })
+        print(f"[tick] {datetime.now(timezone.utc).isoformat()} price={price} "
+              f"position={position['status']} action={tick_status} score={live_total_score} "
+              f"regime={regime_result['label']} pullback_ok={tick_pullback_ok} reason=\"{reason}\"", flush=True)
 
         if time.monotonic() >= window_deadline:
             break

@@ -1,9 +1,9 @@
-"""Experiment Engine — tích hợp MLflow (xem plan-02.md mục 5c, 11, 13.10).
+"""Experiment Engine — tích hợp MLflow.
 
 Mỗi lần Backtest/train Entry Model sinh ra một Experiment (Config/Feature,
-Metrics, Decision — mục 13.10) — dùng MLflow Tracking thay vì tự xây log, theo
-quyết định OSS ở mục 5c. Backend **sqlite** (`data/mlflow.db`), không cần
-server MLflow riêng ở quy mô hiện tại — nâng cấp sau nếu cần chia sẻ nhiều máy.
+Metrics, Decision) — dùng MLflow Tracking thay vì tự xây log. Backend
+**sqlite** (`data/mlflow.db`), không cần server MLflow riêng ở quy mô hiện
+tại — nâng cấp sau nếu cần chia sẻ nhiều máy.
 """
 import json
 import os
@@ -71,8 +71,8 @@ def log_backtest_run(result: dict, params: dict, run_name: str | None = None) ->
 
 def log_entry_model_run(model, metrics: dict, params: dict, run_name: str | None = None, register: bool = True) -> str:
     """Log 1 lần train Entry Model — metrics + model artifact, đăng ký vào MLflow
-    Model Registry (mục 15 Strategy Package, mục 16 Champion-Challenger dùng
-    alias trên registry này ở bước sau) khi `register=True`.
+    Model Registry (Strategy Package/Champion-Challenger dùng alias trên
+    registry này ở bước sau) khi `register=True`.
     """
     import mlflow.lightgbm
 
@@ -94,8 +94,8 @@ def log_entry_model_run(model, metrics: dict, params: dict, run_name: str | None
 
 
 def log_paper_trading_run(stats: dict, n_trades: int, run_name: str | None = None) -> str:
-    """Log 1 lần chốt sổ Paper Trading (mục 2, Success Criteria #4) — khác
-    Backtest (replay lịch sử), đây là thống kê trên lệnh ENTRY/EXIT thật đã
+    """Log 1 lần chốt sổ Paper Trading (Success Criteria: edge dương sau phí) —
+    khác Backtest (replay lịch sử), đây là thống kê trên lệnh ENTRY/EXIT thật đã
     phát sinh qua `run.py`. Gọi định kỳ (vd sau mỗi N lệnh đóng) qua
     `scripts/paper_trading_report.py`.
     """

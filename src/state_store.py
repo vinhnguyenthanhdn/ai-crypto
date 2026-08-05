@@ -1,7 +1,7 @@
 """SQLite state store: state machine, run lock, và signal log.
 
-Mỗi lần cron gọi là một process mới (xem plan-02.md, phần Trigger) nên toàn bộ
-state phải nằm ngoài process — không giữ gì trong memory giữa các lần chạy.
+Mỗi lần cron gọi là một process mới nên toàn bộ state phải nằm ngoài process —
+không giữ gì trong memory giữa các lần chạy.
 """
 import json
 import sqlite3
@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS position_state (
     symbol TEXT,
     entry_price REAL,
     entry_time TEXT,
+    entry_score REAL,
     stop_price REAL,
     take_profit_price REAL,
     size_usd REAL
@@ -57,8 +58,8 @@ CREATE TABLE IF NOT EXISTS kv_store (
     value TEXT
 );
 
--- Feature Store (xem plan-02.md mục 5b/13.11): raw feature mỗi lần chạy, tách khỏi
--- signal_log (chỉ có score) — dùng để train Entry Model và truy vết Feature Lineage.
+-- Feature Store: raw feature mỗi lần chạy, tách khỏi signal_log (chỉ có score)
+-- — dùng để train Entry Model và truy vết Feature Lineage.
 CREATE TABLE IF NOT EXISTS feature_snapshot (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     ts TEXT NOT NULL,
@@ -67,9 +68,9 @@ CREATE TABLE IF NOT EXISTS feature_snapshot (
     features TEXT NOT NULL
 );
 
--- Raw Event (xem plan-02.md mục 13.1/13.2): Event Sourcing, không overwrite,
--- nguồn sự thật cho lifecycle 1 trade (Signal -> Risk Check -> Entry -> Monitoring
--- -> Exit). payload JSON đóng luôn vai trò Snapshot (mục 13.3) cho type ENTRY/EXIT.
+-- Raw Event: Event Sourcing, không overwrite, nguồn sự thật cho lifecycle 1 trade
+-- (Signal -> Risk Check -> Entry -> Monitoring -> Exit). payload JSON đóng luôn
+-- vai trò Snapshot cho type ENTRY/EXIT.
 CREATE TABLE IF NOT EXISTS event_log (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     ts TEXT NOT NULL,
@@ -90,6 +91,10 @@ def get_conn():
     conn = sqlite3.connect(str(config.DB_PATH), timeout=10)
     try:
         conn.executescript(_SCHEMA)
+        try:
+            conn.execute("ALTER TABLE position_state ADD COLUMN entry_score REAL")
+        except sqlite3.OperationalError:
+            pass  # cột đã tồn tại (DB tạo trước khi thêm entry_score)
         yield conn
         conn.commit()
     finally:
@@ -102,7 +107,7 @@ class RunAlreadyInProgress(Exception):
 
 @contextmanager
 def run_lock(stale_after_seconds=180):
-    """Chặn cron chạy chồng (xem plan-02.md, rủi ro 'Cron chạy chồng').
+    """Chặn cron chạy chồng.
 
     Nếu lock cũ hơn stale_after_seconds thì coi như process trước đã chết
     (crash/kill) và tự giải phóng, tránh khoá vĩnh viễn.
@@ -128,13 +133,24 @@ def run_lock(stale_after_seconds=180):
             conn.execute("DELETE FROM run_lock WHERE id = 1")
 
 
+def get_run_lock_status():
+    """Đang có 1 lần chạy `run.py` giữ `run_lock` (đang trong cửa sổ theo dõi
+    liên tục), khác với cron chỉ đang BẬT nhưng đợi tới lần trigger kế tiếp."""
+    with get_conn() as conn:
+        row = conn.execute("SELECT pid, started_at FROM run_lock WHERE id = 1").fetchone()
+    if not row:
+        return {"active": False, "pid": None, "started_at": None}
+    pid, started_at = row
+    return {"active": True, "pid": pid, "started_at": started_at}
+
+
 def _pid():
     import os
 
     return os.getpid()
 
 
-_POSITION_FIELDS = ["status", "symbol", "entry_price", "entry_time", "stop_price", "take_profit_price", "size_usd"]
+_POSITION_FIELDS = ["status", "symbol", "entry_price", "entry_time", "entry_score", "stop_price", "take_profit_price", "size_usd"]
 
 
 def get_position_state():
@@ -147,17 +163,17 @@ def get_position_state():
         return dict(zip(_POSITION_FIELDS, row))
 
 
-def set_position_state(status, symbol=None, entry_price=None, entry_time=None,
+def set_position_state(status, symbol=None, entry_price=None, entry_time=None, entry_score=None,
                         stop_price=None, take_profit_price=None, size_usd=None):
     with get_conn() as conn:
         conn.execute(
-            "INSERT INTO position_state (id, status, symbol, entry_price, entry_time, "
-            "stop_price, take_profit_price, size_usd) VALUES (1, ?, ?, ?, ?, ?, ?, ?) "
+            "INSERT INTO position_state (id, status, symbol, entry_price, entry_time, entry_score, "
+            "stop_price, take_profit_price, size_usd) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?) "
             "ON CONFLICT(id) DO UPDATE SET status=excluded.status, symbol=excluded.symbol, "
-            "entry_price=excluded.entry_price, entry_time=excluded.entry_time, "
+            "entry_price=excluded.entry_price, entry_time=excluded.entry_time, entry_score=excluded.entry_score, "
             "stop_price=excluded.stop_price, take_profit_price=excluded.take_profit_price, "
             "size_usd=excluded.size_usd",
-            (status, symbol, entry_price, entry_time, stop_price, take_profit_price, size_usd),
+            (status, symbol, entry_price, entry_time, entry_score, stop_price, take_profit_price, size_usd),
         )
 
 
@@ -224,7 +240,7 @@ def is_trading_halted_today() -> bool:
 
 
 def get_max_drawdown_pct() -> float:
-    """Max Drawdown tính từ lịch sử `daily_pnl` (xem plan-02.md, mục 8 Risk Engine).
+    """Max Drawdown tính từ lịch sử `daily_pnl` (Risk Engine).
 
     Cộng dồn PnL% theo ngày, theo dõi đỉnh (peak) chạy được — drawdown là
     khoảng cách lớn nhất từ đỉnh xuống điểm thấp nhất sau đó.
@@ -258,7 +274,7 @@ def get_kill_switch_reason() -> str:
 
 
 def record_exit_now():
-    """Đánh dấu thời điểm SELL gần nhất để tính Cooldown (mục 8 Risk Engine)."""
+    """Đánh dấu thời điểm SELL gần nhất để tính Cooldown (Risk Engine)."""
     set_kv("last_exit_at", _now_iso())
 
 
@@ -272,7 +288,7 @@ def cooldown_remaining_seconds(cooldown_minutes: float) -> float:
 
 
 def log_feature_snapshot(symbol, price, features: dict):
-    """Feature Store: lưu raw feature mỗi lần chạy (xem plan-02.md mục 5b/13.11)."""
+    """Feature Store: lưu raw feature mỗi lần chạy."""
     with get_conn() as conn:
         conn.execute(
             "INSERT INTO feature_snapshot (ts, symbol, price, features) VALUES (?, ?, ?, ?)",
@@ -281,7 +297,7 @@ def log_feature_snapshot(symbol, price, features: dict):
 
 
 def get_feature_snapshots(symbol=None, limit=1000):
-    """Đọc lại Feature Store để train Entry Model (Phase 3) — mới nhất trước."""
+    """Đọc lại Feature Store để train Entry Model — mới nhất trước."""
     with get_conn() as conn:
         if symbol:
             rows = conn.execute(
@@ -301,11 +317,11 @@ def get_feature_snapshots(symbol=None, limit=1000):
 
 
 def log_event(event_type: str, payload: dict, trade_id: str | None = None):
-    """Raw Event (xem plan-02.md mục 13.2): nguồn sự thật, không overwrite.
+    """Raw Event: nguồn sự thật, không overwrite.
 
     `type` ví dụ: MARKET_TICK, FEATURE_UPDATED, SIGNAL_GENERATED, RISK_REJECTED,
-    ENTRY, STOP_MOVED, TAKE_PROFIT, EXIT. payload của ENTRY/EXIT chính là Snapshot
-    (mục 13.3) — không cần bảng snapshot riêng.
+    ENTRY, STOP_MOVED, TAKE_PROFIT, EXIT. payload của ENTRY/EXIT chính là
+    Snapshot — không cần bảng snapshot riêng.
     """
     with get_conn() as conn:
         conn.execute(
@@ -335,8 +351,8 @@ def get_events(trade_id: str | None = None, event_type: str | None = None, limit
 
 def get_ws_cvd(symbol: str, max_age_seconds: float = 120.0):
     """CVD tính từ trade stream WS thật (`collector_ws.py`, flush mỗi 30s) — ưu
-    tiên dùng thay CVD xấp xỉ từ REST snapshot khi có sẵn và đủ mới (mục 7b).
-    None nếu collector_ws chưa chạy/dữ liệu quá cũ, caller tự fallback về REST.
+    tiên dùng thay CVD xấp xỉ từ REST snapshot khi có sẵn và đủ mới. None nếu
+    collector_ws chưa chạy/dữ liệu quá cũ, caller tự fallback về REST.
     """
     cvd = get_kv(f"cvd_ws_{symbol}")
     ts = get_kv(f"cvd_ws_{symbol}_updated_at")
@@ -349,7 +365,7 @@ def get_ws_cvd(symbol: str, max_age_seconds: float = 120.0):
 
 
 def get_last_tick(symbol: str, max_age_seconds: float = 30.0):
-    """Tick giá thật gần nhất từ collector_ws (mục 5d) — None nếu quá cũ/không có
+    """Tick giá thật gần nhất từ collector_ws — None nếu quá cũ/không có
     (collector_ws chưa chạy hoặc mất kết nối), caller tự fallback về giá REST.
     """
     price = get_kv(f"last_tick_price_{symbol}")
@@ -367,7 +383,7 @@ def make_trade_id(symbol: str, entry_time: str) -> str:
 
 
 def get_trade_summary(trade_id: str) -> dict | None:
-    """Trade Summary (mục 13.4): ghép cặp ENTRY/EXIT event của cùng trade_id."""
+    """Trade Summary: ghép cặp ENTRY/EXIT event của cùng trade_id."""
     events = get_events(trade_id=trade_id)
     entry = next((e for e in events if e["type"] == "ENTRY"), None)
     exit_ = next((e for e in events if e["type"] == "EXIT"), None)

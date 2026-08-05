@@ -1,5 +1,5 @@
-"""Backtest Engine cho chiến lược Short riêng — thử nghiệm (xem docs/tasks.md,
-phát hiện "buy đỉnh cục bộ" từ AI Review Backtest trên chiến lược Long).
+"""Backtest Engine cho chiến lược Short riêng — thử nghiệm (phát hiện "buy đỉnh
+cục bộ" từ AI Review Backtest trên chiến lược Long).
 
 Mirror hoàn toàn cấu trúc của `engine.py` (cùng nguyên tắc không look-ahead,
 fill ở open bar kế tiếp, warmup, min-hold-time...) nhưng dùng

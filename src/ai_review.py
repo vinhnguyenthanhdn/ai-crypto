@@ -1,4 +1,4 @@
-"""AI Review Backtest (xem plan-02.md mục 11, 13.6).
+"""AI Review Backtest.
 
 LLM đọc Metrics/Trade Log/Config → sinh Summary/Lesson Learned/Pattern/Anti
 Pattern/Recommendation, lưu vào Obsidian (`knowledge/Backtests/`). Tái dùng cơ

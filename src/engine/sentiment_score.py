@@ -1,6 +1,6 @@
-"""Sentiment score — rule-based theo Fear & Greed Index (xem plan-02.md, nhóm
-Market Sentiment, 6%). Dùng logic contrarian: sợ hãi cực độ thường đi kèm khả
-năng bật lại ngắn hạn, tham lam cực độ tăng rủi ro điều chỉnh.
+"""Sentiment score — rule-based theo Fear & Greed Index (nhóm Market Sentiment).
+Dùng logic contrarian: sợ hãi cực độ thường đi kèm khả năng bật lại ngắn hạn,
+tham lam cực độ tăng rủi ro điều chỉnh.
 """
 
 

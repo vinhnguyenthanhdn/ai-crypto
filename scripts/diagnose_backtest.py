@@ -1,5 +1,4 @@
-"""Công cụ chẩn đoán Backtest: tách bạch nguyên nhân thua lỗ thành 3 nguồn độc lập
-(xem docs/research-technical-signal-edge.md).
+"""Công cụ chẩn đoán Backtest: tách bạch nguyên nhân thua lỗ thành 3 nguồn độc lập.
 
 Backtest thường chỉ trả về 1 con số win rate — không cho biết lỗ đến từ tín hiệu
 vào lệnh sai, rule thoát lệnh cắt quá sớm, hay chi phí giao dịch. Script này chạy
@@ -74,7 +73,8 @@ def score_all_bars(enriched: pd.DataFrame, side: str) -> pd.DataFrame:
         })
         rows.append({
             "idx": i, "total_score": total, "tech_score": tech["total"],
-            "regime": reg["label"], **{f"sig_{k}": v for k, v in tech["breakdown"].items()},
+            "regime": reg["label"], "pullback_ok": technical.pullback_ok(enriched, idx=i, side=side),
+            **{f"sig_{k}": v for k, v in tech["breakdown"].items()},
         })
     return pd.DataFrame(rows).set_index("idx")
 
@@ -82,12 +82,18 @@ def score_all_bars(enriched: pd.DataFrame, side: str) -> pd.DataFrame:
 # ------------------------------------------------------- A. edge thuần của tín hiệu
 
 def signal_edge_report(df: pd.DataFrame, scores: pd.DataFrame, side: str,
-                       buy_threshold: float, watch_threshold: float) -> dict:
+                       buy_threshold: float, watch_threshold: float,
+                       idx_range: tuple[int, int] | None = None) -> dict:
     """Forward return từ giá open bar i+1 (đúng điểm fill của engine) sang open bar
-    i+1+h, không exit rule, không chi phí. So tín hiệu vs toàn bộ bar."""
+    i+1+h, không exit rule, không chi phí. So tín hiệu vs toàn bộ bar.
+
+    idx_range: nếu set (lo, hi), chỉ xét bar có idx trong [lo, hi) — dùng cho
+    walk-forward để so 2+ giai đoạn tách biệt không chồng lấp trên cùng 1 lần
+    tính score."""
     open_vals = df["open"].to_numpy()
     n = len(df)
     sign = 1.0 if side == "long" else -1.0
+    scores = scores if idx_range is None else scores.loc[idx_range[0]:idx_range[1] - 1]
 
     entry_fn = decision.decide_entry if side == "long" else decision.decide_short_entry
     want_action = "BUY" if side == "long" else "SHORT"
@@ -96,6 +102,7 @@ def signal_edge_report(df: pd.DataFrame, scores: pd.DataFrame, side: str,
         action, _ = entry_fn(
             row["total_score"], row["regime"], trading_halted=False,
             buy_threshold=buy_threshold, watch_threshold=watch_threshold,
+            pullback_ok=row["pullback_ok"],
         )
         if action == want_action:
             fired.append(idx)
@@ -135,15 +142,18 @@ def run_instrumented(df: pd.DataFrame, enriched: pd.DataFrame, scores: pd.DataFr
                      exit_mode: str = "full", fixed_hold_bars: int = 0,
                      fee_pct: float = DEFAULT_FEE_PCT, slippage_pct: float = DEFAULT_SLIPPAGE_PCT,
                      random_entry_seed: int | None = None, n_random_trades: int = 0,
-                     cost_gate: bool = False) -> dict:
+                     cost_gate: bool = False, idx_range: tuple[int, int] | None = None) -> dict:
     """Bản sao engine thật nhưng ghi log đầy đủ + cho phép thay đổi cơ chế thoát.
 
     exit_mode: full (đủ rule) | sltp (chỉ SL/TP) | fixed (thoát sau `fixed_hold_bars` bar).
     random_entry_seed: nếu set, bỏ qua tín hiệu và vào lệnh ở các bar ngẫu nhiên.
     cost_gate: bật ràng buộc `TP_distance >= MIN_TP_COST_RATIO * chi phí khứ hồi`
-        (mục 6.1) — tắt mặc định để các phép đo A/B/D phản ánh hành vi trước khi sửa.
-    """
+        — tắt mặc định để các phép đo A/B/D phản ánh hành vi trước khi sửa.
+    idx_range: nếu set (lo, hi), chỉ chạy vòng lặp trong [lo, hi) — dùng cho walk-forward
+        để mô phỏng từng giai đoạn như 1 lần deploy độc lập (position/cooldown reset ở
+        đầu mỗi giai đoạn, không mang trạng thái từ giai đoạn trước sang)."""
     n = len(df)
+    lo, hi = (WARMUP_BARS, n - 1) if idx_range is None else (max(WARMUP_BARS, idx_range[0]), min(n - 1, idx_range[1]))
     open_vals, close_vals = df["open"].to_numpy(), df["close"].to_numpy()
     high_vals, low_vals = df["high"].to_numpy(), df["low"].to_numpy()
     ts_vals = df["ts"].to_numpy() if "ts" in df.columns else np.arange(n)
@@ -159,11 +169,11 @@ def run_instrumented(df: pd.DataFrame, enriched: pd.DataFrame, scores: pd.DataFr
     random_bars = set()
     if random_entry_seed is not None:
         rng = np.random.default_rng(random_entry_seed)
-        pool = np.arange(WARMUP_BARS, n - 1)
+        pool = np.arange(lo, hi)
         random_bars = set(rng.choice(pool, size=min(n_random_trades * 4, len(pool)), replace=False).tolist())
 
     trades, position, cooldown_until, n_skipped = [], None, -1, 0
-    for i in range(WARMUP_BARS, n - 1):
+    for i in range(lo, hi):
         fill_price = float(open_vals[i + 1])
 
         if position is not None:
@@ -178,8 +188,8 @@ def run_instrumented(df: pd.DataFrame, enriched: pd.DataFrame, scores: pd.DataFr
                 )
                 if exit_mode == "sltp" and should_exit and "stop loss" not in reason and "take profit" not in reason:
                     should_exit, reason = False, ""
-            # chốt cưỡng bức ở bar cuối để không bỏ sót lệnh đang mở
-            if not should_exit and i == n - 2:
+            # chốt cưỡng bức ở bar cuối (của toàn bộ df, hoặc của giai đoạn walk-forward) để không bỏ sót lệnh đang mở
+            if not should_exit and i == hi - 1:
                 should_exit, reason = True, "Hết dữ liệu"
 
             if should_exit:
@@ -222,7 +232,8 @@ def run_instrumented(df: pd.DataFrame, enriched: pd.DataFrame, scores: pd.DataFr
         else:
             row = scores.loc[i]
             action, _ = entry_fn(row["total_score"], row["regime"], trading_halted=False,
-                                 buy_threshold=buy_threshold, watch_threshold=watch_threshold)
+                                 buy_threshold=buy_threshold, watch_threshold=watch_threshold,
+                                 pullback_ok=row["pullback_ok"])
             take = action == want_action
 
         if take:
@@ -279,6 +290,8 @@ def main():
     p.add_argument("--watch-threshold", type=float, default=45.0)
     p.add_argument("--refresh", action="store_true", help="Bỏ cache, tải lại OHLCV")
     p.add_argument("--out-prefix", default=None)
+    p.add_argument("--walk-forward-splits", type=int, default=2,
+                   help="Số giai đoạn tách biệt không chồng lấp để kiểm tra walk-forward")
     args = p.parse_args()
 
     df = load_ohlcv(args.symbol, args.timeframe, args.days, args.exchange, args.refresh)
@@ -347,6 +360,28 @@ def main():
                 k2: v for k2, v in r.items() if k2 != "trades"
             }
     config.MIN_TP_COST_RATIO = original_k
+
+    print(f"[F] walk-forward theo {args.walk_forward_splits} giai đoạn...", file=sys.stderr)
+    n = len(df)
+    idx_min, idx_max = int(scores.index.min()), int(scores.index.max())
+    total_range = idx_max - idx_min + 1
+    bounds = [idx_min + round(total_range * k / args.walk_forward_splits) for k in range(args.walk_forward_splits + 1)]
+    result["F_walk_forward"] = {}
+    for seg in range(args.walk_forward_splits):
+        seg_lo, seg_hi = bounds[seg], bounds[seg + 1]
+        a = signal_edge_report(df, scores, args.side, args.buy_threshold, args.watch_threshold, idx_range=(seg_lo, seg_hi))
+        r = run_instrumented(df, enriched, scores, args.side, args.timeframe, args.buy_threshold, args.watch_threshold,
+                             exit_mode="full", cost_gate=True, idx_range=(seg_lo, seg_hi))
+        result["F_walk_forward"][f"period_{seg + 1}"] = {
+            "from": str(df["ts"].iloc[min(seg_lo, n - 1)]), "to": str(df["ts"].iloc[min(seg_hi, n - 1)]),
+            "n_trades": r.get("n_trades", 0),
+            "n_skipped_cost_gate": r.get("n_skipped_cost_gate"),
+            "gross_t_stat": r.get("gross_t_stat"),
+            "pnl_net_pct_total": r.get("pnl_net_pct_total"),
+            "pnl_net_pct_winrate": r.get("pnl_net_pct_winrate"),
+            "signal_edge_h24_t_stat": a["horizons"].get(24, {}).get("t_stat_vs_baseline"),
+            "signal_edge_h24_edge_pct": a["horizons"].get(24, {}).get("edge_pct"),
+        }
 
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
     prefix = args.out_prefix or f"diag_{args.exchange}_{args.side}_{args.timeframe}_{args.days}d"

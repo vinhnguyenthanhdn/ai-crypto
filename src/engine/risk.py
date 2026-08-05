@@ -1,10 +1,10 @@
-"""Risk Engine (xem plan-02.md, rủi ro "Không có position sizing / daily loss limit").
+"""Risk Engine: chống rủi ro "không có position sizing / daily loss limit".
 
 Position size theo % vốn cố định + khoảng cách stop dựa trên ATR, không theo
 cảm tính. Take-profit dùng risk:reward cố định 1.5:1.
 
-**Cost gate** (xem docs/research-technical-signal-edge.md mục 6.1): khoảng cách
-TP/SL thuần theo ATR không tự động lớn hơn chi phí giao dịch. Trên khung nhiễu
+**Cost gate:** khoảng cách TP/SL thuần theo ATR không tự động lớn hơn chi phí
+giao dịch. Trên khung nhiễu
 (ATR nhỏ so với giá), TP có thể nằm GẦN entry hơn cả chi phí khứ hồi — lệnh chạy
 đúng kịch bản tốt nhất vẫn lỗ. `compute_position_plan` vì vậy trả thêm
 `edge_viable`: False nghĩa là cấu trúc lệnh này không thể có lãi kể cả khi đúng
@@ -74,8 +74,8 @@ def compute_pnl_pct(entry_price: float, exit_price: float) -> float:
 def compute_short_position_plan(entry_price: float, atr: float,
                                 fee_pct: float | None = None, slippage_pct: float | None = None):
     """Mirror của `compute_position_plan` cho lệnh Short — dùng để thử nghiệm
-    chiến lược Short riêng (xem docs/tasks.md, phát hiện "buy đỉnh cục bộ" từ
-    AI Review Backtest). Chưa dùng trong Rule Engine live/`run.py`."""
+    chiến lược Short riêng (phát hiện "buy đỉnh cục bộ" từ AI Review Backtest).
+    Chưa dùng trong Rule Engine live/`run.py`."""
     stop_distance = atr * ATR_STOP_MULTIPLIER
     return _plan_common(
         entry_price, atr,

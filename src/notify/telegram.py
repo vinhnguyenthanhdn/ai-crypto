@@ -1,4 +1,4 @@
-"""Telegram notify (xem plan-02.md, phần Alert)."""
+"""Telegram notify."""
 import requests
 
 from .. import config

@@ -1,4 +1,4 @@
-"""CLI sinh AI Review cho 1 lần backtest đã chạy (xem plan-02.md mục 11, 13.6).
+"""CLI sinh AI Review cho 1 lần backtest đã chạy.
 
 Usage:
     python scripts/review_backtest.py <name> --backtest-json path/to/result.json

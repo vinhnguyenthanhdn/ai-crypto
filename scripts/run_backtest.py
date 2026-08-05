@@ -1,4 +1,4 @@
-"""CLI chạy Backtest Engine trên dữ liệu lịch sử thật (xem plan-02.md mục 11).
+"""CLI chạy Backtest Engine trên dữ liệu lịch sử thật.
 
 Usage:
     python scripts/run_backtest.py [--symbol BTC/USDT] [--timeframe 5m] [--days 30]

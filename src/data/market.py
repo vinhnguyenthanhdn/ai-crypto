@@ -1,8 +1,8 @@
 """Lấy dữ liệu từ sàn qua CCXT: OHLCV đa khung, order book, trades, funding, OI.
 
-Retry ngắn theo plan-02.md (rủi ro "Exchange API downtime/rate-limit"): thử lại
-tối đa 3 lần, backoff ngắn; nếu vẫn lỗi thì raise để caller quyết định bỏ qua
-lần chạy này thay vì tính toán trên dữ liệu thiếu.
+Retry ngắn (chống rủi ro Exchange API downtime/rate-limit): thử lại tối đa 3
+lần, backoff ngắn; nếu vẫn lỗi thì raise để caller quyết định bỏ qua lần chạy
+này thay vì tính toán trên dữ liệu thiếu.
 """
 import time
 
@@ -40,7 +40,9 @@ def get_exchange():
 
 
 def get_binance_exchange():
-    """Sàn thứ 2 chỉ để Collector đối chiếu (xem plan-02.md mục 5b) — không dùng cho Rule Engine."""
+    """Binance hiện chỉ dùng cho Collector đối chiếu giá, chưa tham gia Rule
+    Engine — không phải vì thấp hơn OKX, mà vì hệ thống hiện tại chỉ chạy quyết
+    định trên 1 sàn tại 1 thời điểm; kế hoạch sẽ bổ sung thêm sàn ngang hàng."""
     return ccxt.binance(
         {
             "apiKey": config.BINANCE_API_KEY or None,
@@ -51,8 +53,9 @@ def get_binance_exchange():
 
 
 def fetch_cross_exchange_price(symbol):
-    """Giá spot nhanh từ Binance để đối chiếu — best-effort, lỗi thì trả None thay vì
-    chặn pipeline chính (Binance ở đây chỉ là nguồn phụ, xem plan-02.md mục 5b)."""
+    """Giá spot nhanh từ Binance để đối chiếu — best-effort, lỗi thì trả None thay
+    vì chặn pipeline chính (Binance ở đây chưa tham gia quyết định, không phải vì
+    vai trò thấp hơn — xem `get_binance_exchange`)."""
     try:
         exchange = get_binance_exchange()
         ticker = _with_retry(exchange.fetch_ticker, symbol)
@@ -62,7 +65,7 @@ def fetch_cross_exchange_price(symbol):
 
 
 def fetch_ohlcv_multi_tf(exchange, symbol, timeframes=("1m", "5m", "15m"), limit=200):
-    """Đa khung thời gian cho lớp Technical (xem plan-02.md phần Score Engine)."""
+    """Đa khung thời gian cho lớp Technical."""
     result = {}
     for tf in timeframes:
         result[tf] = _with_retry(exchange.fetch_ohlcv, symbol, timeframe=tf, limit=limit)
@@ -89,7 +92,7 @@ def fetch_funding_rate(exchange, symbol):
 
 
 def fetch_historical_ohlcv(exchange, symbol, timeframe, days):
-    """Tải OHLCV lịch sử nhiều trang (dùng cho Backtest Engine mục 11, Entry Model mục 7)."""
+    """Tải OHLCV lịch sử nhiều trang (dùng cho Backtest Engine, Entry Model)."""
     tf_ms = exchange.parse_timeframe(timeframe) * 1000
     since = exchange.milliseconds() - days * 24 * 60 * 60 * 1000
     all_rows = []

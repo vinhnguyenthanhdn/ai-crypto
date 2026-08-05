@@ -1,6 +1,6 @@
 # Knowledge Base (Obsidian Vault)
 
-Vault này là **Knowledge Memory** của project — xem `docs/plan-02.md` phần 12 & 12b để biết vai trò, quy tắc note, và ranh giới với Data Memory (SQLite/`data/state.db`).
+Vault này là **Knowledge Memory** của project (kinh nghiệm, quyết định, nghiên cứu) — khác với Data Memory (SQLite/`data/state.db`, dữ liệu định lượng).
 
 Mở thư mục `knowledge/` này trực tiếp bằng Obsidian làm vault.
 

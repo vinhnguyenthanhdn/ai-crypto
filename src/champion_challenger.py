@@ -1,9 +1,9 @@
-"""Champion–Challenger qua MLflow Model Registry alias (xem plan-02.md mục 16).
+"""Champion–Challenger qua MLflow Model Registry alias.
 
 Luôn có Champion (đang giao dịch) và Challenger (đang thử nghiệm) — dùng alias
-`@champion`/`@challenger` trên registry `entry-model` (mục 5c: alias đúng khái
-niệm plan-02 mô tả, chi phí adopt thấp). Serving code chỉ cần load theo alias
-`models:/entry-model@champion`, không cần đổi code khi promote version mới.
+`@champion`/`@challenger` trên registry `entry-model`. Serving code chỉ cần
+load theo alias `models:/entry-model@champion`, không cần đổi code khi promote
+version mới.
 """
 import mlflow
 from mlflow.tracking import MlflowClient
@@ -25,8 +25,8 @@ def set_challenger(version: str):
 
 def promote_challenger_to_champion():
     """Challenger phải backtest tốt, paper trading ổn định, và vượt Champion trong
-    thời gian đủ dài mới được thay Champion (mục 16) — điều kiện này đánh giá thủ
-    công/bằng script riêng trước khi gọi hàm này, hàm chỉ thực hiện việc promote.
+    thời gian đủ dài mới được thay Champion — điều kiện này đánh giá thủ công/bằng
+    script riêng trước khi gọi hàm này, hàm chỉ thực hiện việc promote.
     """
     client = get_client()
     challenger = get_challenger_version()

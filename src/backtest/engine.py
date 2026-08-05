@@ -1,7 +1,7 @@
-"""Backtest Engine (xem plan-02.md mục 11): replay Decision Engine + Risk Engine
-trên OHLCV lịch sử, bar-by-bar, không look-ahead — quyết định ở bar `i` chỉ dùng
-dữ liệu tới bar `i`, fill lệnh ở giá open bar `i+1` (không dùng close bar hiện tại
-để vào lệnh, tránh look-ahead bias). Mô phỏng fee + slippage.
+"""Backtest Engine: replay Decision Engine + Risk Engine trên OHLCV lịch sử,
+bar-by-bar, không look-ahead — quyết định ở bar `i` chỉ dùng dữ liệu tới bar
+`i`, fill lệnh ở giá open bar `i+1` (không dùng close bar hiện tại để vào lệnh,
+tránh look-ahead bias). Mô phỏng fee + slippage.
 
 **Lưu ý fill SL/TP:** điều kiện chạm stop/take-profit được kiểm tra trên giá
 close bar `i`, nhưng lệnh chỉ khớp ở giá open bar `i+1` (không giả định khớp
@@ -9,20 +9,18 @@ close bar `i`, nhưng lệnh chỉ khớp ở giá open bar `i+1` (không giả 
 hồi lại trước khi bar kế tiếp mở, cộng thêm phí. Đây là hành vi thiết kế
 (tránh look-ahead), không phải lỗi.
 
-**Không dùng vectorbt** dù đã cân nhắc ở mục 5c: vectorbt 1.1.0 yêu cầu
-`pandas>=3.0.3`, trong khi MLflow (mục 5c, dùng cho Experiment Engine + Model
-Registry) yêu cầu `pandas<3` — hai thư viện xung đột cứng, không cài chung được
-trong 1 venv. Vì MLflow phục vụ nhiều task hơn (Experiment Engine + Champion-
-Challenger), giữ MLflow và tự tính Drawdown/Sharpe/Win Rate (vài dòng, không
-phức tạp) thay vì vectorbt. Xem plan-02.md mục 5c để biết cập nhật quyết định.
+**Không dùng vectorbt:** vectorbt 1.1.0 yêu cầu `pandas>=3.0.3`, trong khi
+MLflow (dùng cho Experiment Engine + Model Registry) yêu cầu `pandas<3` — hai
+thư viện xung đột cứng, không cài chung được trong 1 venv. Vì MLflow phục vụ
+nhiều task hơn (Experiment Engine + Champion-Challenger), giữ MLflow và tự
+tính Drawdown/Sharpe/Win Rate (vài dòng, không phức tạp) thay vì vectorbt.
 
 **Giới hạn đã biết:** chỉ replay được lớp Technical + Market Regime — 2 lớp duy
 nhất có đủ dữ liệu lịch sử qua OHLCV công khai. Order Flow/Derivatives/
 Cross-market/Sentiment không có nguồn lịch sử đủ tốt trong scope hiện tại nên
-giữ ở điểm trung tính 50 khi backtest, đúng giới hạn đã ghi từ Phase 1 (xem mục
-5b: "Freqtrade/vectorbt backtest offline cho lớp Technical"). Kết quả backtest
-vì vậy là cận trên lạc quan hơn thực tế — không dùng số này để quyết định vào
-lệnh thật mà không paper trade trước (xem mục 8b, "Lưu ý quan trọng").
+giữ ở điểm trung tính 50 khi backtest. Kết quả backtest vì vậy là cận trên lạc
+quan hơn thực tế — không dùng số này để quyết định vào lệnh thật mà không paper
+trade trước.
 
 **Hệ quả toán học của giới hạn trên:** với 4/6 lớp cố định ở 50 điểm (62% trọng
 số), tổng điểm tối đa có thể đạt được trong backtest là `100*0.35 + 90*0.03 +

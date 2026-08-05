@@ -1,11 +1,11 @@
-"""AI Report qua Claude (xem plan-02.md, phần AI Report).
+"""AI Report qua Claude.
 
 Gọi qua Claude Code CLI cục bộ (OAuth subscription, không phải Anthropic API
 key trả phí theo token) — cùng cách OpenClaw gọi Claude trong các cron job
 khác trên máy này (xem `/Users/administrator/.openclaw/bin/daily-briefing.py`).
 
 Chỉ gọi khi đã có quyết định BUY/SELL — không gọi mỗi tick, để tránh chi phí
-và độ trễ không cần thiết (xem plan-02.md, rủi ro "Chi phí LLM tăng theo tần suất cron").
+và độ trễ không cần thiết (rủi ro "chi phí LLM tăng theo tần suất cron").
 """
 import subprocess
 

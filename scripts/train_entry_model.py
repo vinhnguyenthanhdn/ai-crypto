@@ -1,4 +1,4 @@
-"""CLI train Entry Model (LightGBM) trên dữ liệu lịch sử thật (xem plan-02.md mục 7).
+"""CLI train Entry Model (LightGBM) trên dữ liệu lịch sử thật.
 
 Usage:
     python scripts/train_entry_model.py [--symbol BTC/USDT] [--timeframe 5m] [--days 60]

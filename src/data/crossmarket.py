@@ -1,4 +1,4 @@
-"""Cross-market context: Nasdaq, Gold, DXY, VIX (xem plan-02.md, nhóm Cross-market).
+"""Cross-market context: Nasdaq, Gold, DXY, VIX.
 
 Dùng % thay đổi phiên gần nhất làm tín hiệu risk-on/risk-off đơn giản, không
 cần độ trễ thấp vì đây là lớp bối cảnh, không phải lớp quyết định chính.

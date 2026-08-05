@@ -1,5 +1,5 @@
-"""CLI đóng gói Strategy Package (xem plan-02.md mục 15) từ Entry Model đã train
-+ (tuỳ chọn) kết quả Backtest/Paper Trading gần nhất.
+"""CLI đóng gói Strategy Package từ Entry Model đã train + (tuỳ chọn) kết quả
+Backtest/Paper Trading gần nhất.
 
 Usage:
     python scripts/build_strategy_package.py <name> --model-version <version> \

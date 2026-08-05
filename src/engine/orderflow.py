@@ -1,10 +1,10 @@
-"""Order Flow score (xem plan-02.md, mục 5b/7b, nhóm Order Book & Order Flow, 28%).
+"""Order Flow score — nhóm Order Book & Order Flow.
 
 Bid/Ask Imbalance vẫn lấy từ REST order book snapshot mỗi lần chạy. CVD ưu
 tiên lấy từ trade stream WS thật (`collector_ws.py`, qua `state_store.get_ws_cvd`)
 khi có sẵn — chính xác hơn REST snapshot vì không bỏ sót trade giữa các lần
-poll (xem mục 7b, lý do đổi trọng số Order Flow). Fallback về CVD xấp xỉ từ
-REST snapshot trades nếu collector_ws chưa chạy/dữ liệu quá cũ.
+poll. Fallback về CVD xấp xỉ từ REST snapshot trades nếu collector_ws chưa
+chạy/dữ liệu quá cũ.
 """
 
 

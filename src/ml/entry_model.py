@@ -1,21 +1,21 @@
-"""Entry Model — LightGBM (xem plan-02.md mục 7).
+"""Entry Model — LightGBM.
 
-Tham khảo cách tách feature khỏi model của Freqtrade FreqAI (mục 5c) mà không
-cài Freqtrade: raw feature đã có sẵn từ Feature Engine
+Tham khảo cách tách feature khỏi model của Freqtrade FreqAI mà không cài
+Freqtrade: raw feature đã có sẵn từ Feature Engine
 (`technical.score_from_indicators`, `regime.classify_regime`), model chỉ học
 từ các cột này — không tự tính lại indicator.
 
 **Label:** forward return sau `horizon_bars` bar có vượt `label_threshold_pct`
 không (binary classification) — đơn giản, dễ diễn giải, khớp vai trò "Entry
-Model dự đoán xác suất" ở mục 3 (Prediction).
+Model dự đoán xác suất".
 
-**Giới hạn:** cùng giới hạn dữ liệu lịch sử như Backtest Engine (mục 11) — chỉ
-Technical + Regime có đủ lịch sử qua OHLCV công khai; Order Flow/Derivatives/
-Cross-market/Sentiment chưa đưa vào feature (Feature Store chưa tích luỹ đủ dài
-cho các lớp này — cần chạy `run.py` định kỳ một thời gian trước khi có đủ dữ
-liệu thật để bổ sung).
+**Giới hạn:** cùng giới hạn dữ liệu lịch sử như Backtest Engine — chỉ Technical
++ Regime có đủ lịch sử qua OHLCV công khai; Order Flow/Derivatives/Cross-market/
+Sentiment chưa đưa vào feature (Feature Store chưa tích luỹ đủ dài cho các lớp
+này — cần chạy `run.py` định kỳ một thời gian trước khi có đủ dữ liệu thật để
+bổ sung).
 
-**Walk-forward, không random split** (xem mục 8b, rủi ro "Backtest overfitting"):
+**Walk-forward, không random split** (chống rủi ro "Backtest overfitting"):
 tách train/test theo thời gian (train = đoạn đầu, test = đoạn cuối), không xáo
 trộn — tránh model "nhìn thấy tương lai" qua các bar nằm rải rác trong tập train.
 """

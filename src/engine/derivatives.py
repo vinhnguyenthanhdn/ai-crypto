@@ -1,7 +1,7 @@
-"""Derivatives score (xem plan-02.md, nhóm Derivatives, 21%): Funding Rate + Open Interest.
+"""Derivatives score (nhóm Derivatives): Funding Rate + Open Interest.
 
-Long/Short Ratio và Liquidation Heatmap chưa đưa vào scope (xem plan-02.md, mục
-"Đã cắt khỏi scope") vì cần nguồn dữ liệu trả phí (Coinglass...).
+Long/Short Ratio và Liquidation Heatmap chưa đưa vào scope vì cần nguồn dữ liệu
+trả phí (Coinglass...).
 
 OI không có sẵn % thay đổi theo API — lưu giá trị lần chạy trước vào SQLite
 (kv_store) để tự tính xu hướng tăng/giảm giữa các lần cron gọi.

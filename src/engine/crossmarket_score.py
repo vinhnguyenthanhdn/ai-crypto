@@ -1,5 +1,4 @@
-"""Cross-market score — tương quan risk-on/risk-off đơn giản (xem plan-02.md,
-mục 7b, nhóm Cross-market, 7%).
+"""Cross-market score — tương quan risk-on/risk-off đơn giản (nhóm Cross-market).
 
 Hệ số lấy từ `config.CROSSMARKET_*_COEF`, không hard-code trong hàm — tương
 quan thị trường đổi theo thời gian (vd BTC-DXY đã đảo chiều từ nghịch sang

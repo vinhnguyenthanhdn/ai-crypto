@@ -1,9 +1,9 @@
 """Decision Engine: tổng hợp trọng số các lớp + state machine BUY/SELL.
 
-Pipeline hiện tại (xem plan-02.md, phần Decision Engine):
+Pipeline hiện tại:
 Market Regime -> Sentiment Filter -> Order Flow Filter -> Technical Filter
 -> Risk Engine -> BUY / HOLD / SELL
-(Macro/News/On-chain Filter chưa triển khai — xem plan-02.md phần AI Filter)
+(Macro/News/On-chain Filter chưa triển khai)
 """
 import pandas as pd
 
@@ -26,10 +26,17 @@ def decide_entry(
     cooldown_remaining_seconds: float = 0.0,
     buy_threshold: float | None = None,
     watch_threshold: float | None = None,
+    pullback_ok: bool = True,
 ) -> tuple[str, str]:
     """`buy_threshold`/`watch_threshold` mặc định lấy từ config (live) — Backtest
-    Engine (mục 11) có thể truyền riêng để thử calibrate ngưỡng trên dữ liệu lịch
-    sử mà không ảnh hưởng ngưỡng đang chạy live."""
+    Engine có thể truyền riêng để thử calibrate ngưỡng trên dữ liệu lịch sử mà
+    không ảnh hưởng ngưỡng đang chạy live.
+
+    `pullback_ok` (pullback filter, `technical.pullback_ok`): gate cứng giống
+    Regime — mặc định True để không phá vỡ caller cũ chưa truyền, nhưng khi
+    caller truyền False (giá đang breakout/extended, chưa hồi về gần EMA20) thì
+    chặn BUY bất kể `total_score`, tránh mua đúng lúc giá sắp đảo chiều.
+    """
     buy_threshold = config.BUY_SCORE_THRESHOLD if buy_threshold is None else buy_threshold
     watch_threshold = config.WATCH_SCORE_THRESHOLD if watch_threshold is None else watch_threshold
 
@@ -45,6 +52,9 @@ def decide_entry(
     if regime_label in ("HIGH_VOLATILITY", "UNKNOWN"):
         return "IGNORE", f"Regime {regime_label} — rủi ro cao, không vào lệnh mới"
 
+    if total_score >= buy_threshold and not pullback_ok:
+        return "IGNORE", f"Tổng điểm {total_score} đạt ngưỡng BUY nhưng giá đang breakout/extended, chưa hồi về vùng pullback"
+
     if total_score >= buy_threshold:
         return "BUY", f"Tổng điểm {total_score} >= ngưỡng BUY {buy_threshold}"
     if total_score >= watch_threshold:
@@ -59,18 +69,18 @@ def decide_exit(
     idx: int = -1,
     min_hold_satisfied: bool = True,
 ) -> tuple[bool, str]:
-    """Điều kiện thoát lệnh (xem plan-02.md, phần State Machine sau khi BUY).
+    """Điều kiện thoát lệnh (state machine sau khi BUY).
 
-    `idx` mặc định -1 (bar cuối, dùng cho live). Backtest Engine (mục 11) truyền
-    `idx` cụ thể để đọc trực tiếp từ dataframe đã `add_indicators()` 1 lần, tránh
+    `idx` mặc định -1 (bar cuối, dùng cho live). Backtest Engine truyền `idx`
+    cụ thể để đọc trực tiếp từ dataframe đã `add_indicators()` 1 lần, tránh
     phải cắt slice/tính lại indicator mỗi bar (xem `technical.score_from_indicators`).
 
     `min_hold_satisfied`: Stop Loss/Take Profit luôn được kiểm tra ngay từ bar
     đầu (bảo vệ vốn không thể trì hoãn), nhưng các rule thoát theo momentum
-    (MACD/RSI/Volume/EMA) chỉ áp dụng sau khi giữ lệnh đủ `MIN_HOLD_MINUTES`
-    (mục 9) — phát hiện từ AI Review Backtest: kiểm tra momentum ngay bar kế
-    tiếp lúc vào lệnh khiến phần lớn lệnh bị đá ra trong 1-2 bar (5-10 phút),
-    chưa đủ thời gian phát triển, làm win rate thấp bất thường.
+    (MACD/RSI/Volume/EMA) chỉ áp dụng sau khi giữ lệnh đủ `MIN_HOLD_MINUTES` —
+    phát hiện từ AI Review Backtest: kiểm tra momentum ngay bar kế tiếp lúc vào
+    lệnh khiến phần lớn lệnh bị đá ra trong 1-2 bar (5-10 phút), chưa đủ thời
+    gian phát triển, làm win rate thấp bất thường.
     """
     last = df_indicators.iloc[idx]
     stop_price = position_state["stop_price"]
@@ -97,8 +107,14 @@ def decide_exit(
     if not pd.isna(last.get("rsi")) and last["rsi"] > 75:
         return True, "RSI quá mua (>75)"
 
-    if not pd.isna(last.get("vol_sma20")) and last["vol_sma20"] > 0 and last["volume"] < 0.5 * last["vol_sma20"]:
-        return True, "Volume giảm mạnh, momentum yếu"
+    # Volume giảm mạnh MỘT MÌNH không đủ để kết luận momentum yếu — nến vẫn xanh
+    # (giá đi lên) lúc volume thấp chỉ là tạm nghỉ trong trend, không phải đảo
+    # chiều (phát hiện: điều kiện chỉ-volume chiếm 55-71% tổng số lệnh thoát,
+    # gần như luôn lỗ). Yêu cầu thêm nến đỏ tại thời điểm xét để xác nhận giá
+    # cũng đang yếu đi.
+    vol_weak = not pd.isna(last.get("vol_sma20")) and last["vol_sma20"] > 0 and last["volume"] < 0.5 * last["vol_sma20"]
+    if vol_weak and last["close"] < last["open"]:
+        return True, "Volume giảm mạnh kèm giá yếu, momentum suy giảm"
 
     if not pd.isna(last.get("ema20")) and not pd.isna(last.get("ema50")) and last["ema20"] < last["ema50"]:
         return True, "EMA20 cắt xuống EMA50"
@@ -107,8 +123,8 @@ def decide_exit(
 
 
 def decide_short_entry(total_score: float, regime_label: str, trading_halted: bool, **kwargs) -> tuple[str, str]:
-    """Thử nghiệm chiến lược Short riêng (xem docs/tasks.md, phát hiện "buy đỉnh
-    cục bộ" từ AI Review Backtest) — tái dùng gating của `decide_entry`
+    """Thử nghiệm chiến lược Short riêng (phát hiện "buy đỉnh cục bộ" từ AI
+    Review Backtest) — tái dùng gating của `decide_entry`
     (kill switch/cooldown/trading halted/regime/ngưỡng), chỉ đổi nhãn BUY->SHORT.
     Chưa dùng trong Rule Engine live/`run.py`.
     """
@@ -150,8 +166,11 @@ def decide_short_exit(
     if not pd.isna(last.get("rsi")) and last["rsi"] < 25:
         return True, "RSI quá bán (<25)"
 
-    if not pd.isna(last.get("vol_sma20")) and last["vol_sma20"] > 0 and last["volume"] < 0.5 * last["vol_sma20"]:
-        return True, "Volume giảm mạnh, momentum yếu"
+    # Mirror của decide_exit — xem comment ở đó (2026-08-05): yêu cầu thêm nến xanh
+    # (giá hồi lên) tại thời điểm xét để xác nhận momentum giảm thật, không chỉ volume.
+    vol_weak = not pd.isna(last.get("vol_sma20")) and last["vol_sma20"] > 0 and last["volume"] < 0.5 * last["vol_sma20"]
+    if vol_weak and last["close"] > last["open"]:
+        return True, "Volume giảm mạnh kèm giá hồi, momentum suy giảm"
 
     if not pd.isna(last.get("ema20")) and not pd.isna(last.get("ema50")) and last["ema20"] > last["ema50"]:
         return True, "EMA20 cắt lên EMA50"

@@ -1,4 +1,4 @@
-"""Fear & Greed Index (alternative.me) — xem plan-02.md, nhóm Market Sentiment."""
+"""Fear & Greed Index (alternative.me) — nhóm Market Sentiment."""
 import requests
 
 FNG_URL = "https://api.alternative.me/fng/?limit=1"

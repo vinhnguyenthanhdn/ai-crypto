@@ -1,5 +1,5 @@
-"""CLI chạy Backtest Engine cho chiến lược Short riêng (thử nghiệm — xem
-docs/tasks.md, phát hiện "buy đỉnh cục bộ" từ AI Review Backtest).
+"""CLI chạy Backtest Engine cho chiến lược Short riêng (thử nghiệm — phát hiện
+"buy đỉnh cục bộ" từ AI Review Backtest).
 
 Usage:
     python scripts/run_short_backtest.py [--symbol BTC/USDT] [--timeframe 5m] [--days 30]

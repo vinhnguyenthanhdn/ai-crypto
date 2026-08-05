@@ -1,13 +1,13 @@
-"""Strategy Package (xem plan-02.md mục 15): không build nhiều project — chỉ có
-một Trading Framework, model chỉ là một Strategy Package gồm Config, Model
-Weight, Feature Version, Risk Profile, Exit Rule, Backtest Result, Paper
-Result, Model Card. Framework luôn giống nhau, chỉ thay Strategy Package.
+"""Strategy Package: không build nhiều project — chỉ có một Trading Framework,
+model chỉ là một Strategy Package gồm Config, Model Weight, Feature Version,
+Risk Profile, Exit Rule, Backtest Result, Paper Result, Model Card. Framework
+luôn giống nhau, chỉ thay Strategy Package.
 
-Lưu 2 nơi theo đúng phân tách Data Memory / Knowledge Memory (mục 12b):
+Lưu 2 nơi theo đúng phân tách Data Memory / Knowledge Memory:
 - Manifest JSON (Config/Model Weight/Feature Version/Risk Profile/Backtest/
   Paper Result — dữ liệu định lượng, tái tạo được) → `data/strategy_packages/`.
 - Model Card Markdown (Summary/Strength/Weakness/... — tri thức, con người đọc
-  được, mục 18) → `knowledge/Models/` (Obsidian vault, mục 12b).
+  được) → `knowledge/Models/` (Obsidian vault).
 """
 import json
 
@@ -19,10 +19,10 @@ MODEL_CARDS_DIR = config.BASE_DIR / "knowledge" / "Models"
 
 
 def _exit_rule_description() -> str:
-    """Mô tả Exit Rule hiện tại (rule-based, mục 9) — không tự động trích từ
-    code, cập nhật thủ công khi `decision.decide_exit` đổi logic."""
+    """Mô tả Exit Rule hiện tại (rule-based) — không tự động trích từ code, cập
+    nhật thủ công khi `decision.decide_exit` đổi logic."""
     return (
-        "Rule-based (mục 9): stop loss/take profit theo ATR (risk.py, R:R 1.5), "
+        "Rule-based: stop loss/take profit theo ATR (risk.py, R:R 1.5), "
         "MACD đảo chiều xuống, RSI quá mua (>75), volume giảm mạnh (<50% SMA20), "
         "EMA20 cắt xuống EMA50."
     )
@@ -106,7 +106,7 @@ Total return: {_format_metric(paper.get('total_return_pct'))}% — Max drawdown:
 
 ## Weakness
 Chỉ dùng Technical + Regime cho Entry Model (Order Flow/Derivatives/Cross-market/
-Sentiment chưa đủ dữ liệu lịch sử — xem `docs/plan-02.md` mục 5b).
+Sentiment chưa đủ dữ liệu lịch sử).
 
 ## Deployment History
 - {manifest['name']}: model_weight version {mw['version']}.

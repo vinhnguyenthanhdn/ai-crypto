@@ -1,6 +1,4 @@
-"""Market Regime — rule-based, không dùng LLM (xem plan-02.md, góc nhìn bổ sung
-"Market Regime nên rule-based, không phải AI").
-"""
+"""Market Regime — rule-based, không dùng LLM."""
 import pandas as pd
 
 

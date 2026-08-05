@@ -1,5 +1,5 @@
-"""Báo cáo hiệu suất Paper Trading (xem plan-02.md mục 2, Success Criteria #4:
-"Paper Trading có edge dương sau phí").
+"""Báo cáo hiệu suất Paper Trading (Success Criteria: "Paper Trading có edge
+dương sau phí").
 
 Khác Backtest (`scripts/run_backtest.py`, replay dữ liệu lịch sử) — script này
 thống kê trên các lệnh ENTRY/EXIT **thật** đã phát sinh qua `run.py` khi chạy

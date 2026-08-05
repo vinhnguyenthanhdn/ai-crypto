@@ -2,6 +2,9 @@
 __pycache__/
 *.pyc
 .env
+config/*.env
+config/dashboard_secret.json
+config/dashboard_state.json
 data/*.db
 data/mlruns/
 # Cache OHLCV + log chẩn đoán sinh ra từ scripts/diagnose_backtest.py — tái tạo được, không commit

@@ -1,4 +1,4 @@
-"""CLI quản lý Champion–Challenger (xem plan-02.md mục 16).
+"""CLI quản lý Champion–Challenger.
 
 Usage:
     python scripts/champion_challenger.py status
