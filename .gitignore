@@ -1,0 +1,11 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+data/*.db
+data/mlruns/
+# Cache OHLCV + log chẩn đoán sinh ra từ scripts/diagnose_backtest.py — tái tạo được, không commit
+data/diagnostics/
+.DS_Store
+logs/*.log
+mlruns/

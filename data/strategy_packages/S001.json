@@ -1,0 +1,1039 @@
+{
+  "name": "S001",
+  "config": {
+    "weights": {
+      "technical": 35,
+      "order_flow": 28,
+      "derivatives": 21,
+      "cross_market": 7,
+      "sentiment": 6,
+      "regime": 3
+    },
+    "buy_score_threshold": 70.0,
+    "watch_score_threshold": 55.0
+  },
+  "model_weight": {
+    "registry_name": "entry-model",
+    "version": "1",
+    "uri": "models:/entry-model/1",
+    "metrics": {
+      "accuracy": 0.8907,
+      "auc": 0.5931,
+      "positive_rate_train": 0.1738,
+      "positive_rate_test": 0.1052,
+      "n_train": 13646.0,
+      "n_test": 3412.0
+    }
+  },
+  "feature_version": {
+    "columns": [
+      "ema20",
+      "ema50",
+      "ema200",
+      "rsi",
+      "macd",
+      "macd_signal",
+      "adx",
+      "atr",
+      "vwap",
+      "vol_sma20",
+      "supertrend_dir",
+      "regime_atr_pct",
+      "regime_score"
+    ],
+    "horizon_bars": 12,
+    "label_threshold_pct": 0.3
+  },
+  "risk_profile": {
+    "account_equity_usd": 500.0,
+    "risk_per_trade_pct": 1.5,
+    "daily_loss_limit_pct": 5.0,
+    "max_drawdown_pct": 15.0,
+    "cooldown_minutes": 30.0,
+    "max_concurrent_positions": 1
+  },
+  "exit_rule": "Rule-based (mục 9): stop loss/take profit theo ATR (risk.py, R:R 1.5), MACD đảo chiều xuống, RSI quá mua (>75), volume giảm mạnh (<50% SMA20), EMA20 cắt xuống EMA50.",
+  "backtest_result": {
+    "symbol": "BTC/USDT",
+    "timeframe": "5m",
+    "n_bars": 8640,
+    "n_trades": 121,
+    "trades": [
+      {
+        "entry_idx": 312,
+        "entry_price": 63847.7079,
+        "exit_idx": 314,
+        "exit_price": 63752.51,
+        "pnl_pct": -0.349,
+        "reason": "Volume giảm mạnh, momentum yếu"
+      },
+      {
+        "entry_idx": 342,
+        "entry_price": 64466.717249999994,
+        "exit_idx": 344,
+        "exit_price": 64230.27,
+        "pnl_pct": -0.567,
+        "reason": "Chạm stop loss (64262.4 <= 64279.3)"
+      },
+      {
+        "entry_idx": 367,
+        "entry_price": 64310.63924999999,
+        "exit_idx": 368,
+        "exit_price": 64150.31,
+        "pnl_pct": -0.449,
+        "reason": "Volume giảm mạnh, momentum yếu"
+      },
+      {
+        "entry_idx": 566,
+        "entry_price": 64031.89995,
+        "exit_idx": 569,
+        "exit_price": 63899.63,
+        "pnl_pct": -0.407,
+        "reason": "Volume giảm mạnh, momentum yếu"
+      },
+      {
+        "entry_idx": 579,
+        "entry_price": 64158.062999999995,
+        "exit_idx": 580,
+        "exit_price": 63959.2,
+        "pnl_pct": -0.51,
+        "reason": "Volume giảm mạnh, momentum yếu"
+      },
+      {
+        "entry_idx": 588,
+        "entry_price": 64196.58225,
+        "exit_idx": 589,
+        "exit_price": 64207.78,
+        "pnl_pct": -0.183,
+        "reason": "Volume giảm mạnh, momentum yếu"
+      },
+      {
+        "entry_idx": 679,
+        "entry_price": 63663.315749999994,
+        "exit_idx": 680,
+        "exit_price": 63500.13,
+        "pnl_pct": -0.456,
+        "reason": "MACD đảo chiều xuống"
+      },
+      {
+        "entry_idx": 1024,
+        "entry_price": 62627.59815,
+        "exit_idx": 1033,
+        "exit_price": 62820.77,
+        "pnl_pct": 0.108,
+        "reason": "Đạt take profit (62852.2 >= 62844.34)"
+      },
+      {
+        "entry_idx": 1040,
+        "entry_price": 63124.74659999999,
+        "exit_idx": 1041,
+        "exit_price": 62833.87,
+        "pnl_pct": -0.661,
+        "reason": "Chạm stop loss (62865.3 <= 62939.85)"
+      },
+      {
+        "entry_idx": 1053,
+        "entry_price": 63052.71059999999,
+        "exit_idx": 1061,
+        "exit_price": 62831.07,
+        "pnl_pct": -0.552,
+        "reason": "Chạm stop loss (62862.6 <= 62880.29)"
+      },
+      {
+        "entry_idx": 1068,
+        "entry_price": 63008.38845,
+        "exit_idx": 1069,
+        "exit_price": 62775.7,
+        "pnl_pct": -0.569,
+        "reason": "Chạm stop loss (62807.2 <= 62868.23)"
+      },
+      {
+        "entry_idx": 1130,
+        "entry_price": 62988.4785,
+        "exit_idx": 1140,
+        "exit_price": 62938.22,
+        "pnl_pct": -0.28,
+        "reason": "MACD đảo chiều xuống"
+      },
+      {
+        "entry_idx": 1262,
+        "entry_price": 63784.77645,
+        "exit_idx": 1272,
+        "exit_price": 63884.94,
+        "pnl_pct": -0.043,
+        "reason": "Volume giảm mạnh, momentum yếu"
+      },
+      {
+        "entry_idx": 1279,
+        "entry_price": 63965.1666,
+        "exit_idx": 1280,
+        "exit_price": 63855.56,
+        "pnl_pct": -0.371,
+        "reason": "Volume giảm mạnh, momentum yếu"
+      },
+      {
+        "entry_idx": 1295,
+        "entry_price": 64083.32565,
+        "exit_idx": 1299,
+        "exit_price": 64051.96,
+        "pnl_pct": -0.249,
+        "reason": "Volume giảm mạnh, momentum yếu"
+      },
+      {
+        "entry_idx": 1307,
+        "entry_price": 64134.35115,
+        "exit_idx": 1308,
+        "exit_price": 64045.66,
+        "pnl_pct": -0.338,
+        "reason": "Volume giảm mạnh, momentum yếu"
+      },
+      {
+        "entry_idx": 1352,
+        "entry_price": 64339.5537,
+        "exit_idx": 1357,
+        "exit_price": 64441.26,
+        "pnl_pct": -0.042,
+        "reason": "RSI quá mua (>75)"
+      },
+      {
+        "entry_idx": 1368,
+        "entry_price": 64490.72925,
+        "exit_idx": 1369,
+        "exit_price": 64450.06,
+        "pnl_pct": -0.263,
+        "reason": "Volume giảm mạnh, momentum yếu"
+      },
+      {
+        "entry_idx": 1510,
+        "entry_price": 64164.96645,
+        "exit_idx": 1512,
+        "exit_price": 64096.04,
+        "pnl_pct": -0.307,
+        "reason": "Volume giảm mạnh, momentum yếu"
+      },
+      {
+        "entry_idx": 1642,
+        "entry_price": 64310.038949999995,
+        "exit_idx": 1643,
+        "exit_price": 64198.68,
+        "pnl_pct": -0.373,
+        "reason": "Chạm stop loss (64230.9 <= 64266.81)"
+      },
+      {
+        "entry_idx": 1701,
+        "entry_price": 64403.88584999999,
+        "exit_idx": 1702,
+        "exit_price": 64362.2,
+        "pnl_pct": -0.265,
+        "reason": "RSI quá mua (>75)"
+      },
+      {
+        "entry_idx": 1711,
+        "entry_price": 64498.8333,
+        "exit_idx": 1712,
+        "exit_price": 64388.69,
+        "pnl_pct": -0.371,
+        "reason": "Chạm stop loss (64421.0 <= 64428.03)"
+      },
+      {
+        "entry_idx": 1753,
+        "entry_price": 64397.282549999996,
+        "exit_idx": 1754,
+        "exit_price": 64299.83,
+        "pnl_pct": -0.351,
+        "reason": "Volume giảm mạnh, momentum yếu"
+      },
+      {
+        "entry_idx": 1781,
+        "entry_price": 64464.8163,
+        "exit_idx": 1782,
+        "exit_price": 64375.4,
+        "pnl_pct": -0.339,
+        "reason": "Chạm stop loss (64407.6 <= 64409.6)"
+      },
+      {
+        "entry_idx": 1999,
+        "entry_price": 64231.39965,
+        "exit_idx": 2003,
+        "exit_price": 64117.03,
+        "pnl_pct": -0.378,
+        "reason": "Chạm stop loss (64149.1 <= 64153.81)"
+      },
+      {
+        "entry_idx": 2057,
+        "entry_price": 64244.40615,
+        "exit_idx": 2058,
+        "exit_price": 64184.19,
+        "pnl_pct": -0.294,
+        "reason": "Volume giảm mạnh, momentum yếu"
+      },
+      {
+        "entry_idx": 2267,
+        "entry_price": 62745.05684999999,
+        "exit_idx": 2268,
+        "exit_price": 62536.92,
+        "pnl_pct": -0.532,
+        "reason": "Chạm stop loss (62566.1 <= 62611.25)"
+      },
+      {
+        "entry_idx": 2449,
+        "entry_price": 62743.85625,
+        "exit_idx": 2451,
+        "exit_price": 62700.43,
+        "pnl_pct": -0.269,
+        "reason": "Volume giảm mạnh, momentum yếu"
+      },
+      {
+        "entry_idx": 2539,
+        "entry_price": 62881.424999999996,
+        "exit_idx": 2541,
+        "exit_price": 63027.07,
+        "pnl_pct": 0.032,
+        "reason": "Đạt take profit (63065.5 >= 63018.77)"
+      },
+      {
+        "entry_idx": 2552,
+        "entry_price": 63910.23915,
+        "exit_idx": 2553,
+        "exit_price": 64083.44,
+        "pnl_pct": 0.071,
+        "reason": "RSI quá mua (>75)"
+      },
+      {
+        "entry_idx": 2566,
+        "entry_price": 63953.46075,
+        "exit_idx": 2570,
+        "exit_price": 63948.91,
+        "pnl_pct": -0.207,
+        "reason": "Volume giảm mạnh, momentum yếu"
+      },
+      {
+        "entry_idx": 2578,
+        "entry_price": 64533.250499999995,
+        "exit_idx": 2579,
+        "exit_price": 64848.06,
+        "pnl_pct": 0.288,
+        "reason": "RSI quá mua (>75)"
+      },
+      {
+        "entry_idx": 2607,
+        "entry_price": 64676.522099999995,
+        "exit_idx": 2609,
+        "exit_price": 64558.7,
+        "pnl_pct": -0.382,
+        "reason": "Volume giảm mạnh, momentum yếu"
+      },
+      {
+        "entry_idx": 2678,
+        "entry_price": 65063.3154,
+        "exit_idx": 2679,
+        "exit_price": 64990.89,
+        "pnl_pct": -0.311,
+        "reason": "Volume giảm mạnh, momentum yếu"
+      },
+      {
+        "entry_idx": 2759,
+        "entry_price": 65286.927149999996,
+        "exit_idx": 2760,
+        "exit_price": 65014.38,
+        "pnl_pct": -0.617,
+        "reason": "Chạm stop loss (65046.9 <= 65153.38)"
+      },
+      {
+        "entry_idx": 2837,
+        "entry_price": 65356.561949999996,
+        "exit_idx": 2838,
+        "exit_price": 65277.64,
+        "pnl_pct": -0.321,
+        "reason": "RSI quá mua (>75)"
+      },
+      {
+        "entry_idx": 3466,
+        "entry_price": 64059.4137,
+        "exit_idx": 3469,
+        "exit_price": 64002.18,
+        "pnl_pct": -0.289,
+        "reason": "Volume giảm mạnh, momentum yếu"
+      },
+      {
+        "entry_idx": 3482,
+        "entry_price": 64363.66574999999,
+        "exit_idx": 3486,
+        "exit_price": 64059.25,
+        "pnl_pct": -0.673,
+        "reason": "Chạm stop loss (64091.9 <= 64183.47)"
+      },
+      {
+        "entry_idx": 3620,
+        "entry_price": 64032.0,
+        "exit_idx": 3621,
+        "exit_price": 63964.9,
+        "pnl_pct": -0.305,
+        "reason": "Chạm stop loss (63996.8 <= 64000.02)"
+      },
+      {
+        "entry_idx": 3637,
+        "entry_price": 64048.908449999995,
+        "exit_idx": 3638,
+        "exit_price": 63982.09,
+        "pnl_pct": -0.304,
+        "reason": "Chạm stop loss (64014.1 <= 64028.37)"
+      },
+      {
+        "entry_idx": 3689,
+        "entry_price": 64159.763849999996,
+        "exit_idx": 3690,
+        "exit_price": 64084.64,
+        "pnl_pct": -0.317,
+        "reason": "Chạm stop loss (64110.8 <= 64138.28)"
+      },
+      {
+        "entry_idx": 3698,
+        "entry_price": 64245.5067,
+        "exit_idx": 3701,
+        "exit_price": 64135.82,
+        "pnl_pct": -0.371,
+        "reason": "Chạm stop loss (64167.9 <= 64192.15)"
+      },
+      {
+        "entry_idx": 3753,
+        "entry_price": 64333.850849999995,
+        "exit_idx": 3757,
+        "exit_price": 64411.98,
+        "pnl_pct": -0.079,
+        "reason": "Đạt take profit (64444.2 >= 64441.39)"
+      },
+      {
+        "entry_idx": 3765,
+        "entry_price": 64629.998849999996,
+        "exit_idx": 3766,
+        "exit_price": 64543.81,
+        "pnl_pct": -0.333,
+        "reason": "RSI quá mua (>75)"
+      },
+      {
+        "entry_idx": 3786,
+        "entry_price": 64600.8843,
+        "exit_idx": 3788,
+        "exit_price": 64597.69,
+        "pnl_pct": -0.205,
+        "reason": "Volume giảm mạnh, momentum yếu"
+      },
+      {
+        "entry_idx": 3795,
+        "entry_price": 64710.03884999999,
+        "exit_idx": 3797,
+        "exit_price": 64669.05,
+        "pnl_pct": -0.263,
+        "reason": "Volume giảm mạnh, momentum yếu"
+      },
+      {
+        "entry_idx": 3809,
+        "entry_price": 64833.50055,
+        "exit_idx": 3810,
+        "exit_price": 64749.11,
+        "pnl_pct": -0.33,
+        "reason": "Volume giảm mạnh, momentum yếu"
+      },
+      {
+        "entry_idx": 3817,
+        "entry_price": 64811.3895,
+        "exit_idx": 3818,
+        "exit_price": 64741.21,
+        "pnl_pct": -0.308,
+        "reason": "Volume giảm mạnh, momentum yếu"
+      },
+      {
+        "entry_idx": 3828,
+        "entry_price": 64874.420999999995,
+        "exit_idx": 3831,
+        "exit_price": 64787.59,
+        "pnl_pct": -0.334,
+        "reason": "MACD đảo chiều xuống"
+      },
+      {
+        "entry_idx": 3857,
+        "entry_price": 64849.008299999994,
+        "exit_idx": 3859,
+        "exit_price": 64862.95,
+        "pnl_pct": -0.178,
+        "reason": "RSI quá mua (>75)"
+      },
+      {
+        "entry_idx": 4123,
+        "entry_price": 65060.513999999996,
+        "exit_idx": 4126,
+        "exit_price": 64851.86,
+        "pnl_pct": -0.521,
+        "reason": "Chạm stop loss (64884.2 <= 64895.39)"
+      },
+      {
+        "entry_idx": 4309,
+        "entry_price": 65273.320349999995,
+        "exit_idx": 4311,
+        "exit_price": 65493.64,
+        "pnl_pct": 0.138,
+        "reason": "RSI quá mua (>75)"
+      },
+      {
+        "entry_idx": 4320,
+        "entry_price": 65501.1342,
+        "exit_idx": 4321,
+        "exit_price": 65350.31,
+        "pnl_pct": -0.43,
+        "reason": "MACD đảo chiều xuống"
+      },
+      {
+        "entry_idx": 4330,
+        "entry_price": 65541.45435,
+        "exit_idx": 4333,
+        "exit_price": 65330.02,
+        "pnl_pct": -0.523,
+        "reason": "Chạm stop loss (65362.8 <= 65367.15)"
+      },
+      {
+        "entry_idx": 4423,
+        "entry_price": 65582.775,
+        "exit_idx": 4426,
+        "exit_price": 65418.37,
+        "pnl_pct": -0.451,
+        "reason": "Chạm stop loss (65451.0 <= 65460.67)"
+      },
+      {
+        "entry_idx": 4457,
+        "entry_price": 65729.54835,
+        "exit_idx": 4461,
+        "exit_price": 65538.41,
+        "pnl_pct": -0.491,
+        "reason": "Chạm stop loss (65571.2 <= 65610.99)"
+      },
+      {
+        "entry_idx": 4477,
+        "entry_price": 65684.0256,
+        "exit_idx": 4481,
+        "exit_price": 65737.21,
+        "pnl_pct": -0.119,
+        "reason": "Volume giảm mạnh, momentum yếu"
+      },
+      {
+        "entry_idx": 4488,
+        "entry_price": 65987.37719999999,
+        "exit_idx": 4494,
+        "exit_price": 65846.66,
+        "pnl_pct": -0.413,
+        "reason": "Volume giảm mạnh, momentum yếu"
+      },
+      {
+        "entry_idx": 4501,
+        "entry_price": 66071.31915,
+        "exit_idx": 4507,
+        "exit_price": 66251.36,
+        "pnl_pct": 0.072,
+        "reason": "Đạt take profit (66284.5 >= 66264.44)"
+      },
+      {
+        "entry_idx": 4530,
+        "entry_price": 66330.84885,
+        "exit_idx": 4536,
+        "exit_price": 66329.42,
+        "pnl_pct": -0.202,
+        "reason": "MACD đảo chiều xuống"
+      },
+      {
+        "entry_idx": 4564,
+        "entry_price": 66589.37805,
+        "exit_idx": 4569,
+        "exit_price": 66439.46,
+        "pnl_pct": -0.425,
+        "reason": "MACD đảo chiều xuống"
+      },
+      {
+        "entry_idx": 4580,
+        "entry_price": 66884.72565,
+        "exit_idx": 4581,
+        "exit_price": 66639.16,
+        "pnl_pct": -0.567,
+        "reason": "Chạm stop loss (66672.4 <= 66707.84)"
+      },
+      {
+        "entry_idx": 4698,
+        "entry_price": 66666.1164,
+        "exit_idx": 4699,
+        "exit_price": 66659.85,
+        "pnl_pct": -0.209,
+        "reason": "RSI quá mua (>75)"
+      },
+      {
+        "entry_idx": 4706,
+        "entry_price": 66744.55559999999,
+        "exit_idx": 4708,
+        "exit_price": 66599.18,
+        "pnl_pct": -0.418,
+        "reason": "Chạm stop loss (66632.5 <= 66637.46)"
+      },
+      {
+        "entry_idx": 4895,
+        "entry_price": 66268.21755,
+        "exit_idx": 4899,
+        "exit_price": 66125.22,
+        "pnl_pct": -0.416,
+        "reason": "Volume giảm mạnh, momentum yếu"
+      },
+      {
+        "entry_idx": 5320,
+        "entry_price": 65494.03065,
+        "exit_idx": 5325,
+        "exit_price": 65381.49,
+        "pnl_pct": -0.372,
+        "reason": "MACD đảo chiều xuống"
+      },
+      {
+        "entry_idx": 5348,
+        "entry_price": 65532.249749999995,
+        "exit_idx": 5351,
+        "exit_price": 65417.18,
+        "pnl_pct": -0.376,
+        "reason": "Chạm stop loss (65450.0 <= 65450.57)"
+      },
+      {
+        "entry_idx": 5358,
+        "entry_price": 65659.91355,
+        "exit_idx": 5359,
+        "exit_price": 65734.72,
+        "pnl_pct": -0.086,
+        "reason": "RSI quá mua (>75)"
+      },
+      {
+        "entry_idx": 5748,
+        "entry_price": 64268.61825,
+        "exit_idx": 5749,
+        "exit_price": 64187.79,
+        "pnl_pct": -0.326,
+        "reason": "Chạm stop loss (64219.9 <= 64225.62)"
+      },
+      {
+        "entry_idx": 5777,
+        "entry_price": 64399.1835,
+        "exit_idx": 5778,
+        "exit_price": 64319.62,
+        "pnl_pct": -0.324,
+        "reason": "Volume giảm mạnh, momentum yếu"
+      },
+      {
+        "entry_idx": 5788,
+        "entry_price": 64455.11145,
+        "exit_idx": 5791,
+        "exit_price": 64408.18,
+        "pnl_pct": -0.273,
+        "reason": "Volume giảm mạnh, momentum yếu"
+      },
+      {
+        "entry_idx": 5799,
+        "entry_price": 64455.11145,
+        "exit_idx": 5800,
+        "exit_price": 64365.3,
+        "pnl_pct": -0.339,
+        "reason": "Chạm stop loss (64397.4 <= 64414.39)"
+      },
+      {
+        "entry_idx": 5827,
+        "entry_price": 64441.2045,
+        "exit_idx": 5829,
+        "exit_price": 64357.51,
+        "pnl_pct": -0.33,
+        "reason": "Chạm stop loss (64389.8 <= 64394.81)"
+      },
+      {
+        "entry_idx": 5837,
+        "entry_price": 64439.30355,
+        "exit_idx": 5838,
+        "exit_price": 64379.49,
+        "pnl_pct": -0.293,
+        "reason": "Volume giảm mạnh, momentum yếu"
+      },
+      {
+        "entry_idx": 5854,
+        "entry_price": 64505.0364,
+        "exit_idx": 5855,
+        "exit_price": 64427.27,
+        "pnl_pct": -0.321,
+        "reason": "Chạm stop loss (64460.9 <= 64469.37)"
+      },
+      {
+        "entry_idx": 5867,
+        "entry_price": 64530.44909999999,
+        "exit_idx": 5869,
+        "exit_price": 64450.26,
+        "pnl_pct": -0.324,
+        "reason": "Chạm stop loss (64482.5 <= 64490.51)"
+      },
+      {
+        "entry_idx": 5891,
+        "entry_price": 64601.88479999999,
+        "exit_idx": 5893,
+        "exit_price": 64512.53,
+        "pnl_pct": -0.338,
+        "reason": "Chạm stop loss (64542.6 <= 64557.0)"
+      },
+      {
+        "entry_idx": 5930,
+        "entry_price": 64434.50115,
+        "exit_idx": 5931,
+        "exit_price": 64395.19,
+        "pnl_pct": -0.261,
+        "reason": "EMA20 cắt xuống EMA50"
+      },
+      {
+        "entry_idx": 5960,
+        "entry_price": 64572.0699,
+        "exit_idx": 5961,
+        "exit_price": 64513.83,
+        "pnl_pct": -0.29,
+        "reason": "Volume giảm mạnh, momentum yếu"
+      },
+      {
+        "entry_idx": 5994,
+        "entry_price": 64627.19745,
+        "exit_idx": 5996,
+        "exit_price": 64514.53,
+        "pnl_pct": -0.374,
+        "reason": "Chạm stop loss (64546.7 <= 64595.55)"
+      },
+      {
+        "entry_idx": 6019,
+        "entry_price": 64744.756199999996,
+        "exit_idx": 6020,
+        "exit_price": 64637.76,
+        "pnl_pct": -0.365,
+        "reason": "Chạm stop loss (64670.1 <= 64676.94)"
+      },
+      {
+        "entry_idx": 6032,
+        "entry_price": 64795.381499999996,
+        "exit_idx": 6034,
+        "exit_price": 64728.62,
+        "pnl_pct": -0.303,
+        "reason": "Volume giảm mạnh, momentum yếu"
+      },
+      {
+        "entry_idx": 6047,
+        "entry_price": 64896.33195,
+        "exit_idx": 6051,
+        "exit_price": 64723.32,
+        "pnl_pct": -0.467,
+        "reason": "Chạm stop loss (64755.6 <= 64819.88)"
+      },
+      {
+        "entry_idx": 6108,
+        "entry_price": 64842.30495,
+        "exit_idx": 6109,
+        "exit_price": 64759.3,
+        "pnl_pct": -0.328,
+        "reason": "Chạm stop loss (64791.7 <= 64797.77)"
+      },
+      {
+        "entry_idx": 6117,
+        "entry_price": 65249.30834999999,
+        "exit_idx": 6118,
+        "exit_price": 65190.19,
+        "pnl_pct": -0.291,
+        "reason": "RSI quá mua (>75)"
+      },
+      {
+        "entry_idx": 6193,
+        "entry_price": 65429.4984,
+        "exit_idx": 6194,
+        "exit_price": 65332.52,
+        "pnl_pct": -0.348,
+        "reason": "Volume giảm mạnh, momentum yếu"
+      },
+      {
+        "entry_idx": 6208,
+        "entry_price": 65507.33729999999,
+        "exit_idx": 6218,
+        "exit_price": 65424.67,
+        "pnl_pct": -0.326,
+        "reason": "MACD đảo chiều xuống"
+      },
+      {
+        "entry_idx": 6302,
+        "entry_price": 65646.10665,
+        "exit_idx": 6303,
+        "exit_price": 65402.98,
+        "pnl_pct": -0.57,
+        "reason": "Chạm stop loss (65435.7 <= 65459.58)"
+      },
+      {
+        "entry_idx": 6666,
+        "entry_price": 63983.975999999995,
+        "exit_idx": 6671,
+        "exit_price": 63877.35,
+        "pnl_pct": -0.367,
+        "reason": "Volume giảm mạnh, momentum yếu"
+      },
+      {
+        "entry_idx": 6684,
+        "entry_price": 64040.104049999994,
+        "exit_idx": 6690,
+        "exit_price": 63947.91,
+        "pnl_pct": -0.344,
+        "reason": "MACD đảo chiều xuống"
+      },
+      {
+        "entry_idx": 6714,
+        "entry_price": 64083.92595,
+        "exit_idx": 6715,
+        "exit_price": 63981.89,
+        "pnl_pct": -0.359,
+        "reason": "Volume giảm mạnh, momentum yếu"
+      },
+      {
+        "entry_idx": 6795,
+        "entry_price": 64448.30804999999,
+        "exit_idx": 6796,
+        "exit_price": 64403.48,
+        "pnl_pct": -0.27,
+        "reason": "RSI quá mua (>75)"
+      },
+      {
+        "entry_idx": 6806,
+        "entry_price": 64539.55365,
+        "exit_idx": 6810,
+        "exit_price": 64403.98,
+        "pnl_pct": -0.41,
+        "reason": "Chạm stop loss (64435.5 <= 64448.45)"
+      },
+      {
+        "entry_idx": 6829,
+        "entry_price": 64638.20295,
+        "exit_idx": 6835,
+        "exit_price": 64631.67,
+        "pnl_pct": -0.21,
+        "reason": "Volume giảm mạnh, momentum yếu"
+      },
+      {
+        "entry_idx": 7030,
+        "entry_price": 64386.176999999996,
+        "exit_idx": 7031,
+        "exit_price": 64214.68,
+        "pnl_pct": -0.466,
+        "reason": "Volume giảm mạnh, momentum yếu"
+      },
+      {
+        "entry_idx": 7109,
+        "entry_price": 64343.05545,
+        "exit_idx": 7110,
+        "exit_price": 64305.63,
+        "pnl_pct": -0.258,
+        "reason": "Volume giảm mạnh, momentum yếu"
+      },
+      {
+        "entry_idx": 7117,
+        "entry_price": 64622.295,
+        "exit_idx": 7118,
+        "exit_price": 64564.7,
+        "pnl_pct": -0.289,
+        "reason": "RSI quá mua (>75)"
+      },
+      {
+        "entry_idx": 7129,
+        "entry_price": 64646.607149999996,
+        "exit_idx": 7131,
+        "exit_price": 64534.32,
+        "pnl_pct": -0.374,
+        "reason": "Chạm stop loss (64566.8 <= 64569.74)"
+      },
+      {
+        "entry_idx": 7140,
+        "entry_price": 64687.42754999999,
+        "exit_idx": 7143,
+        "exit_price": 64821.87,
+        "pnl_pct": 0.008,
+        "reason": "Đạt take profit (64854.4 >= 64804.49)"
+      },
+      {
+        "entry_idx": 7154,
+        "entry_price": 64901.53455,
+        "exit_idx": 7155,
+        "exit_price": 64873.15,
+        "pnl_pct": -0.244,
+        "reason": "Volume giảm mạnh, momentum yếu"
+      },
+      {
+        "entry_idx": 7166,
+        "entry_price": 65166.9672,
+        "exit_idx": 7167,
+        "exit_price": 64975.0,
+        "pnl_pct": -0.495,
+        "reason": "Chạm stop loss (65008.0 <= 65024.12)"
+      },
+      {
+        "entry_idx": 7249,
+        "entry_price": 64902.234899999996,
+        "exit_idx": 7251,
+        "exit_price": 64796.69,
+        "pnl_pct": -0.363,
+        "reason": "Volume giảm mạnh, momentum yếu"
+      },
+      {
+        "entry_idx": 7279,
+        "entry_price": 64976.572049999995,
+        "exit_idx": 7281,
+        "exit_price": 64895.44,
+        "pnl_pct": -0.325,
+        "reason": "Volume giảm mạnh, momentum yếu"
+      },
+      {
+        "entry_idx": 7879,
+        "entry_price": 63041.3049,
+        "exit_idx": 7881,
+        "exit_price": 62948.61,
+        "pnl_pct": -0.347,
+        "reason": "Chạm stop loss (62980.8 <= 62985.72)"
+      },
+      {
+        "entry_idx": 7890,
+        "entry_price": 63424.496399999996,
+        "exit_idx": 7891,
+        "exit_price": 63426.77,
+        "pnl_pct": -0.196,
+        "reason": "RSI quá mua (>75)"
+      },
+      {
+        "entry_idx": 7905,
+        "entry_price": 63529.34879999999,
+        "exit_idx": 7906,
+        "exit_price": 63413.88,
+        "pnl_pct": -0.382,
+        "reason": "Volume giảm mạnh, momentum yếu"
+      },
+      {
+        "entry_idx": 7915,
+        "entry_price": 63572.270249999994,
+        "exit_idx": 7916,
+        "exit_price": 63492.94,
+        "pnl_pct": -0.325,
+        "reason": "Volume giảm mạnh, momentum yếu"
+      },
+      {
+        "entry_idx": 7924,
+        "entry_price": 63612.89055,
+        "exit_idx": 7925,
+        "exit_price": 63483.24,
+        "pnl_pct": -0.404,
+        "reason": "Chạm stop loss (63515.1 <= 63548.79)"
+      },
+      {
+        "entry_idx": 8081,
+        "entry_price": 63369.068699999996,
+        "exit_idx": 8082,
+        "exit_price": 63265.45,
+        "pnl_pct": -0.364,
+        "reason": "Chạm stop loss (63297.0 <= 63310.46)"
+      },
+      {
+        "entry_idx": 8089,
+        "entry_price": 63534.7515,
+        "exit_idx": 8090,
+        "exit_price": 63385.89,
+        "pnl_pct": -0.434,
+        "reason": "Chạm stop loss (63417.6 <= 63458.71)"
+      },
+      {
+        "entry_idx": 8116,
+        "entry_price": 63526.04715,
+        "exit_idx": 8121,
+        "exit_price": 63493.34,
+        "pnl_pct": -0.251,
+        "reason": "Volume giảm mạnh, momentum yếu"
+      },
+      {
+        "entry_idx": 8131,
+        "entry_price": 63725.846999999994,
+        "exit_idx": 8132,
+        "exit_price": 63652.16,
+        "pnl_pct": -0.316,
+        "reason": "Volume giảm mạnh, momentum yếu"
+      },
+      {
+        "entry_idx": 8327,
+        "entry_price": 63778.4733,
+        "exit_idx": 8328,
+        "exit_price": 63783.89,
+        "pnl_pct": -0.192,
+        "reason": "RSI quá mua (>75)"
+      },
+      {
+        "entry_idx": 8361,
+        "entry_price": 64022.895449999996,
+        "exit_idx": 8362,
+        "exit_price": 63795.79,
+        "pnl_pct": -0.555,
+        "reason": "Chạm stop loss (63827.7 <= 63851.24)"
+      },
+      {
+        "entry_idx": 8371,
+        "entry_price": 64003.28565,
+        "exit_idx": 8373,
+        "exit_price": 63853.56,
+        "pnl_pct": -0.434,
+        "reason": "Volume giảm mạnh, momentum yếu"
+      },
+      {
+        "entry_idx": 8382,
+        "entry_price": 63942.55529999999,
+        "exit_idx": 8384,
+        "exit_price": 63900.93,
+        "pnl_pct": -0.265,
+        "reason": "Volume giảm mạnh, momentum yếu"
+      },
+      {
+        "entry_idx": 8471,
+        "entry_price": 63847.40775,
+        "exit_idx": 8474,
+        "exit_price": 63835.97,
+        "pnl_pct": -0.218,
+        "reason": "Volume giảm mạnh, momentum yếu"
+      },
+      {
+        "entry_idx": 8495,
+        "entry_price": 63913.84095,
+        "exit_idx": 8497,
+        "exit_price": 64025.37,
+        "pnl_pct": -0.025,
+        "reason": "Đạt take profit (64057.5 >= 64029.77)"
+      },
+      {
+        "entry_idx": 8577,
+        "entry_price": 63804.88649999999,
+        "exit_idx": 8587,
+        "exit_price": 63780.69,
+        "pnl_pct": -0.238,
+        "reason": "Volume giảm mạnh, momentum yếu"
+      },
+      {
+        "entry_idx": 8597,
+        "entry_price": 63964.5663,
+        "exit_idx": 8606,
+        "exit_price": 63835.07,
+        "pnl_pct": -0.402,
+        "reason": "MACD đảo chiều xuống"
+      },
+      {
+        "entry_idx": 8630,
+        "entry_price": 64173.37065,
+        "exit_idx": 8631,
+        "exit_price": 64127.82,
+        "pnl_pct": -0.271,
+        "reason": "Volume giảm mạnh, momentum yếu"
+      }
+    ],
+    "fee_pct": 0.001,
+    "slippage_pct": 0.0005,
+    "total_return_pct": -31.926,
+    "max_drawdown_pct": 31.926,
+    "sharpe_ratio": -21.953,
+    "win_rate_pct": 5.79
+  },
+  "paper_result": null
+}
