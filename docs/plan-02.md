@@ -122,7 +122,7 @@ Trước khi tự build tiếp các khối còn thiếu ở mục 5b, đã khả
 | Backtest engine độc lập (không đổi cả framework) | ~~vectorbt~~ — **đã loại**, tự viết (`src/backtest/engine.py`) | Cân nhắc ban đầu vectorbt (nhanh, vector hoá) hoặc Backtrader, nhưng vectorbt 1.1.0 yêu cầu `pandas>=3.0.3` trong khi MLflow yêu cầu `pandas<3` — xung đột cứng, không cài chung 1 venv được. Vì MLflow phục vụ nhiều task hơn (Experiment + Champion-Challenger), giữ MLflow và tự viết Backtest Engine (replay Decision Engine trực tiếp, tự tính Sharpe/Drawdown/Win Rate — vài chục dòng, không phức tạp). Đã build + test với dữ liệu thật. |
 | Experiment tracking + Model Registry + Champion/Challenger (mục 11, 16, 18) | **MLflow** | Match rất sát: alias `@champion`/`@challenger` đúng khái niệm plan-02 mô tả, Model Registry = Model Card, Experiment Tracking = mục 13.10. Bolt-on library (không phải framework thay thế) — **chi phí adopt thấp**, nên dùng thay vì tự xây Experiment logging từ đầu. Lưu ý triển khai thực tế: (1) MLflow yêu cầu `pandas<3`, xung đột cứng với `vectorbt` (`pandas>=3.0.3`) — đã bỏ vectorbt ở mục Backtest, tự tính Sharpe/Drawdown/Win Rate; (2) MLflow 3.x đã đưa filesystem tracking backend (`file:./mlruns`) vào maintenance mode, báo lỗi thẳng — dùng backend **sqlite** (`data/mlflow.db`) theo khuyến nghị chính thức, đã implement ở `src/experiment.py`. |
 | Knowledge Base RAG/MCP trên Obsidian (mục 12, khi vượt vài nghìn note) | **obsidian-kb-plugin (OKB)** hoặc **"Vault as MCP"** | Đúng nhu cầu "Hybrid Search, Embedding, Graph RAG, MCP" mà mục 12 ghi là "sau vài nghìn note mới cần". Chưa cần cài ngay, nhưng đã có lựa chọn cụ thể sẵn khi tới lúc, không cần tự build RAG layer. |
-| RL cho Exit AI (Phase 6, tương lai) | **FinRL** (AI4Finance-Foundation) | Chỉ liên quan Phase 6 (Exit AI) — chưa cần ở scope hiện tại (mục 7 dùng supervised LightGBM/XGBoost, không phải RL). Giữ làm tham khảo cho sau. |
+| RL cho Exit AI (Phase 7, tương lai) | **FinRL** (AI4Finance-Foundation) | Chỉ liên quan Phase 7 (Exit AI) — chưa cần ở scope hiện tại (mục 7 dùng supervised LightGBM/XGBoost, không phải RL). Giữ làm tham khảo cho sau. |
 
 **Kết luận:** không đổi cả framework (Nautilus/Freqtrade) ngay bây giờ — Phase 1 đã chạy thật trên pipeline custom, migrate sẽ tốn công và có rủi ro phá vỡ cái đang hoạt động. Ưu tiên theo thứ tự:
 1. Adopt MLflow khi tới Phase 2 (Backtest Engine) thay vì tự xây log Experiment.
@@ -189,7 +189,7 @@ Danh sách rủi ro vận hành đã xác định và có giải pháp từ Phas
 | Cron chạy chồng (overlap) | Từ mục 5d, overlap không còn chỉ do process treo — cửa sổ theo dõi y phút có thể ≥ chu kỳ cron x phút, nên lần cron kế tiếp gặp lock là tình huống **bình thường**, không phải lỗi | Dùng file lock/cờ "đang chạy" trong SQLite trước khi xử lý; đang chạy (dù do treo hay do cửa sổ theo dõi chưa xong) thì lần cron mới bỏ qua, tự log lại — không cần phân biệt 2 nguyên nhân. *Ở V2 nếu Collector là 1 process 24/7 (không phải cron), rủi ro này đổi dạng thành "Collector crash/restart" — cần supervisor tự restart thay vì lock giữa các lần cron.* |
 | WebSocket rớt kết nối / reconnect (mới, phát sinh từ mục 5) | Mất dữ liệu Trade Stream/Liquidation trong lúc rớt kết nối → CVD/feature tính thiếu | Auto-reconnect có backoff; đánh dấu gap thời gian mất kết nối vào log để Feature Engine biết loại trừ khoảng đó thay vì tính nhầm |
 | Exchange API downtime / rate-limit | Fetch lỗi giữa chừng → tính toán trên dữ liệu thiếu, có thể ra tín hiệu sai | Retry có giới hạn (2–3 lần, backoff ngắn); nếu vẫn lỗi thì không tính toán/không phát tín hiệu ở lần đó; log lỗi riêng để theo dõi tỷ lệ downtime |
-| Phí + slippage ăn hết lợi nhuận | Mục tiêu lợi nhuận nhỏ rất nhạy với phí | Backtest phải trừ phí maker/taker thực tế + mô hình slippage theo độ sâu order book; loại bỏ chiến lược chỉ có lãi khi bỏ qua phí |
+| Phí + slippage ăn hết lợi nhuận | **Đã xảy ra thật, không còn là rủi ro giả định** — trên khung 5m, khoảng cách Take Profit còn nhỏ hơn cả chi phí khứ hồi, tức lệnh chạy đúng kịch bản tốt nhất vẫn lỗ | Backtest trừ phí maker/taker thực tế + slippage; **Cost Gate ở Risk Engine chặn ngay từ lúc vào lệnh** (mục 8c) thay vì chỉ phát hiện sau khi backtest xong |
 | LLM lỗi/timeout | Thiếu lớp filter định tính đúng lúc quan trọng | Timeout ngắn (5–8s) + fallback mặc định về không vào lệnh; log riêng các lần fallback để đánh giá tần suất |
 | Backtest overfitting | Score/trọng số "đẹp" trên dữ liệu lịch sử nhưng thất bại khi chạy thật | Walk-forward: tách train/test, không tối ưu trên toàn bộ lịch sử rồi test lại chính nó; theo dõi kết quả live so với kỳ vọng backtest |
 | Single point of failure (1 sàn, 1 máy chạy) | Sàn bảo trì/lỗi hoặc máy tắt/mất mạng → hệ thống ngừng mà không ai biết | Health-check riêng biệt, báo Telegram nếu quá X phút không có lần chạy/heartbeat nào — tách khỏi pipeline chính |
@@ -199,6 +199,16 @@ Danh sách rủi ro vận hành đã xác định và có giải pháp từ Phas
 | Thiếu log/observability | Không biết vì sao một tín hiệu đúng/sai, không có dữ liệu để hiệu chỉnh về sau | Log đầy đủ input từng lớp, điểm, đánh giá LLM, quyết định cuối, và kết quả thực tế sau đó (xem mục 13 — thiết kế logging chi tiết hơn Phase 1 nhiều) |
 
 **Lưu ý quan trọng:** không thể đảm bảo lặp lại ổn định lợi nhuận nhỏ trong thời gian ngắn. Trước khi giao dịch thật, phải backtest trên dữ liệu lịch sử và paper trade để đánh giá win rate, drawdown, và ảnh hưởng thực tế của phí/slippage.
+
+## 8c. Cost Gate — biên lợi nhuận phải lớn hơn chi phí
+
+Position Sizing theo ATR (mục 8) trả lời "vào bao nhiêu tiền" nhưng không trả lời "setup này có đáng vào không". Khoảng cách TP/SL sinh ra từ ATR không tự động lớn hơn chi phí giao dịch: trên khung có ATR nhỏ so với giá, TP có thể nằm gần entry hơn cả chi phí khứ hồi — lệnh đi đúng hướng tới tận Take Profit vẫn lỗ.
+
+**Ràng buộc:** Risk Engine từ chối entry khi `TP_distance < MIN_TP_COST_RATIO × chi phí khứ hồi`. Đây là quyền phủ quyết thứ hai của Risk Engine, độc lập với các ngưỡng rủi ro ở mục 8 — nó không hỏi "lỗ tối đa bao nhiêu" mà hỏi "thắng thì có lãi không".
+
+**Nguyên tắc SSOT về chi phí:** `FEE_PCT`/`SLIPPAGE_PCT` khai một lần ở `config.py`, dùng chung cho cả Cost Gate và Backtest Engine. Nếu khai riêng ở 2 nơi, gate sẽ lọc theo mức chi phí khác với mức thực trừ vào PnL — sai lệch âm thầm, không có lỗi nào báo ra.
+
+**Hệ quả chọn khung thời gian:** tỷ lệ `TP_distance / chi phí` là điều kiện cần để một khung thời gian dùng được. Khung nào có tỷ lệ dưới ~2× thì mọi cấu hình entry/exit đều nằm dưới ngưỡng hoà vốn, không phải vấn đề tinh chỉnh tham số. Số đo thực tế theo từng khung và bằng chứng thực nghiệm: `research-technical-signal-edge.md` mục 8.
 
 ## 9. Stop Loss
 
@@ -215,6 +225,12 @@ Backtest không chỉ để biết lời hay lỗ — phải mô phỏng Fee, Sp
 Mỗi Backtest sinh ra một **Experiment**: Feature, Hyperparameter, Dataset, Result, Drawdown, Sharpe, Win Rate — được lưu vào Knowledge Base.
 
 **AI Review Backtest:** LLM đọc Metrics, Trade Log, Config → sinh Summary, Lesson Learned, Pattern, Anti Pattern, Recommendation.
+
+**Chẩn đoán tách nguồn (`scripts/diagnose_backtest.py`):** một chỉ số tổng hợp như win rate không phân biệt được lỗ đến từ tín hiệu, từ rule thoát, hay từ chi phí — dễ dẫn tới sửa nhầm chỗ. Trước khi kết luận nguyên nhân, đo tách rời từng nguồn trên cùng một tập dữ liệu cache:
+- **Edge thuần của tín hiệu** — forward return từ điểm fill, không exit rule, không chi phí, so với baseline toàn bộ bar. Đây là phép đo duy nhất trả lời "tín hiệu có dự báo được hướng giá không".
+- **Ảnh hưởng exit rule** — cùng tập entry, chạy lại với các cơ chế thoát khác nhau (đủ rule / chỉ SL-TP / thoát cố định sau N bar).
+- **Ảnh hưởng chi phí** — mỗi lệnh log 3 mức PnL: gross / sau slippage / sau đủ phí. Lưu ý "gross" phải bỏ **cả** slippage lẫn fee; slippage nằm sẵn trong giá entry/exit nên rất dễ bị tính nhầm là gross.
+- **Baseline ngẫu nhiên** — entry random cùng số lệnh, cùng exit rule. Tín hiệu không tách được khỏi baseline này nghĩa là chưa có edge.
 
 **Knowledge từ Backtest:** mỗi lần backtest phải tạo ra Experiment, Lesson Learned, Pattern, Anti Pattern, Decision. Backtest chính là cỗ máy tạo Knowledge.
 
@@ -539,9 +555,12 @@ Không phải nhiều code — chỉ nhiều Strategy Package.
 | 3 | Entry Model, Strategy Package, Champion–Challenger |
 | 4 | Risk Engine hoàn chỉnh |
 | 5 | AI Review, Obsidian Knowledge Base, RAG |
-| 6 | Exit AI |
-| 7 | Regime Detection, Dynamic Strategy Selection |
-| 8 | Multi-model, Multi-regime, On-chain, Macro Data, Advanced Feature Engineering |
+| 6 | **Đưa chiến lược về mức có edge dương** — chốt khung thời gian, hạ chi phí giao dịch, sửa timing entry |
+| 7 | Exit AI |
+| 8 | Regime Detection, Dynamic Strategy Selection |
+| 9 | Multi-model, Multi-regime, On-chain, Macro Data, Advanced Feature Engineering |
+
+Phase 6 chèn vào giữa vì là **điều kiện chặn**: chẩn đoán ở mục 11 cho thấy chi phí giao dịch đang lớn hơn biên lợi nhuận mục tiêu, nên mọi lớp thông minh hơn thêm vào sau đó (Exit AI, Regime Detection) đều không thể đo được cải thiện — cải thiện sẽ nằm dưới nhiễu của chi phí.
 
 ## 21. Triết lý cuối cùng
 

@@ -43,6 +43,17 @@ Theo dõi tiến độ implement theo Roadmap ở `plan-02.md` mục 20. Danh s�
 - [x] Kill Switch — `state_store.{is_kill_switch_on,set_kill_switch}`, toggle thủ công qua `scripts/kill_switch.py`
 - [x] Cooldown — `state_store.{record_exit_now,cooldown_remaining_seconds}`, chặn BUY trong `COOLDOWN_MINUTES` sau lệnh SELL gần nhất
 - [x] Max Concurrent Position — kiến trúc hiện tại chỉ có 1 `position_state` (1 symbol), đã enforce = 1 tự nhiên qua nhánh `IN_POSITION` return sớm trong `run.py`; `MAX_CONCURRENT_POSITIONS` config để chuẩn bị cho multi-symbol sau này
+- [x] **Cost Gate** (mục 8c) — `config.MIN_TP_COST_RATIO` (mặc định 2.5); `risk.compute_position_plan`/`compute_short_position_plan` trả thêm `edge_viable`/`skip_reason`/`tp_distance_pct`, `run.py` + cả 2 Backtest Engine bỏ qua entry và đếm `n_skipped_cost_gate`. `FEE_PCT`/`SLIPPAGE_PCT` gom về `config.py` (trước hard-code riêng trong Backtest Engine). Đã verify end-to-end: 5m lọc 296/296 lệnh (không lệnh nào đủ điều kiện), 1h còn 63/80 lệnh, win rate 33.3%. Bối cảnh phát hiện + số liệu đầy đủ: `research-technical-signal-edge.md`
+
+## Phase 6 — Đưa chiến lược về mức có edge dương
+
+Chốt lại từ kết quả chẩn đoán (`research-technical-signal-edge.md` mục 9). Thứ tự dưới đây là thứ tự phụ thuộc, không phải mức độ khó: chưa xong mục 1 thì mọi đo đạc ở các mục sau đều bị chi phí lấn át.
+
+- [ ] **Chốt `TIMEFRAME` mới (1h)** — với 5m, Cost Gate chặn 100% tín hiệu nên bot không vào lệnh nào. 1h là khung duy nhất hiện có kỳ vọng gross dương (Long). Sau khi đổi phải calibrate lại `BUY_SCORE_THRESHOLD` trên khung mới, không dùng lại ngưỡng cũ
+- [ ] **Hạ chi phí giao dịch: taker → maker** — gross tốt nhất hiện tại (+0.10%/lệnh trên 1h) vẫn chỉ bằng 1/3 chi phí khứ hồi 0.30%. Maker fee (~0.02%) đưa chi phí về ~0.14%, đủ lật dấu kỳ vọng. Đòn bẩy lớn hơn mọi cải thiện tín hiệu ở quy mô hiện tại. Cần đánh giá kèm rủi ro lệnh maker không khớp
+- [ ] Thêm điều kiện pullback trước entry (vào khi giá hồi trong trend, không vào ngay lúc breakout xác nhận) — nhằm sửa đúng bản chất lagging của bộ tín hiệu, thay vì bù bằng tham số
+- [ ] Đánh giá lại chiến lược Short trên khung mới — Short 1h có gross âm rõ (-0.13%), khác hẳn mức ≈0 ở 5m; chưa dùng được
+- [ ] Test với đủ 6 lớp tín hiệu thật (cần tích luỹ Feature Store qua thời gian chạy `run.py`) thay vì chỉ Technical+Regime
 
 ## Phase 5 — AI Review, Obsidian Knowledge Base, RAG
 
