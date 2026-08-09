@@ -1,5 +1,6 @@
 # AI Crypto Signal Engine
 
+[![CI](https://github.com/vinhnguyenthanhdn/ai-crypto/actions/workflows/ci.yml/badge.svg)](https://github.com/vinhnguyenthanhdn/ai-crypto/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/)
 [![Configurations searched](https://img.shields.io/badge/configurations%20searched-29%2C373-red.svg)](docs/backtest-results.md)
@@ -15,6 +16,13 @@ The system never places real orders. Every execution path is simulated.
 > **29,373 strategy configurations searched. Zero promoted.**
 > This repository publishes the machinery that reached that verdict, and the
 > evidence that the verdict is trustworthy.
+
+![Gross edge across 13,654 rejected configurations, centred on zero and far below the cost hurdle](docs/assets/gross-edge.png)
+
+The chart above is the core result. It shows returns **before any fees**, across
+every rejected configuration. If trading costs were the problem, the distribution
+would sit to the right of the cost line. It sits on zero. Regenerate it yourself
+with `scripts/plot_gross_edge.py`.
 
 ## Why this repository is worth reading
 
