@@ -14,3 +14,7 @@ data/backtests/
 .DS_Store
 logs/*.log
 mlruns/
+# Local agent/assistant instructions — contain workspace-level configuration
+# unrelated to this project, kept on disk but never published
+CLAUDE.md
+AGENTS.md
