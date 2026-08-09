@@ -1,10 +1,20 @@
 # AI Crypto Signal Engine
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/)
+[![Configurations searched](https://img.shields.io/badge/configurations%20searched-29%2C373-red.svg)](docs/backtest-results.md)
+[![Strategies promoted](https://img.shields.io/badge/strategies%20promoted-0-lightgrey.svg)](docs/backtest-results.md)
+[![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
+
 A research platform for systematically discovering — and rigorously falsifying —
 crypto trading strategies, with event-sourced paper trading, implementation-parity
 verification, and a full audit trail from raw candle to logged trade.
 
 The system never places real orders. Every execution path is simulated.
+
+> **29,373 strategy configurations searched. Zero promoted.**
+> This repository publishes the machinery that reached that verdict, and the
+> evidence that the verdict is trustworthy.
 
 ## Why this repository is worth reading
 
@@ -178,7 +188,11 @@ file. Please preserve that when contributing.
 
 ## Contributing
 
-Contributions are welcome. The work that would help most, roughly in order:
+Contributions are welcome — see [CONTRIBUTING.md](CONTRIBUTING.md) for the full
+guide, and the [`good first issue`](https://github.com/vinhnguyenthanhdn/ai-crypto/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22)
+label for self-contained bugs with known locations.
+
+The work that would help most, roughly in order:
 
 1. **Fix the runtime-path bugs** in `docs/code-audit.md`. Several are self-contained
    and well-localized — a good first contribution.
@@ -213,5 +227,4 @@ broken.
 
 ## License
 
-Not yet licensed. Until a license is added, default copyright applies and reuse is
-not permitted.
+MIT — see [LICENSE](LICENSE). Copyright (c) 2026 vinh.nguyenthanhdn.
