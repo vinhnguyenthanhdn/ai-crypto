@@ -1,13 +1,15 @@
 """AI Report qua Claude.
 
 Gọi qua Claude Code CLI cục bộ (OAuth subscription, không phải Anthropic API
-key trả phí theo token) — cùng cách OpenClaw gọi Claude trong các cron job
+key trả phí theo token) — cùng cách các automation local gọi Claude
 khác trên máy này (xem `/Users/administrator/.openclaw/bin/daily-briefing.py`).
 
 Chỉ gọi khi đã có quyết định BUY/SELL — không gọi mỗi tick, để tránh chi phí
-và độ trễ không cần thiết (rủi ro "chi phí LLM tăng theo tần suất cron").
+và độ trễ không cần thiết.
 """
 import subprocess
+
+from .. import config, state_store
 
 CLAUDE_BIN = "claude"
 MODEL = "claude-sonnet-5"
@@ -46,3 +48,15 @@ def generate_report(symbol, decision, price, total_score, layer_scores, reason) 
         return _fallback_text(decision, symbol, price, total_score, reason)
 
     return result.stdout.strip()
+
+
+def generate_report_cached(cache_key, symbol, decision, price, total_score, layer_scores, reason) -> str:
+    """Như `generate_report`, nhưng cache theo `cache_key` (vd `f"{decision}:{trade_id}"`)
+    trong `AI_REPORT_CACHE_TTL_SECONDS`. Cache là best-effort; get/generate/set
+    chưa atomic nên race vẫn có thể gọi trùng (`TODO-AI-CACHE-ATOMIC`)."""
+    cached = state_store.get_cached_report(cache_key, config.AI_REPORT_CACHE_TTL_SECONDS)
+    if cached is not None:
+        return cached
+    report = generate_report(symbol, decision, price, total_score, layer_scores, reason)
+    state_store.set_cached_report(cache_key, report)
+    return report

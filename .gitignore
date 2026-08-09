@@ -9,6 +9,8 @@ data/*.db
 data/mlruns/
 # Cache OHLCV + log chẩn đoán sinh ra từ scripts/diagnose_backtest.py — tái tạo được, không commit
 data/diagnostics/
+# Dataset/artifact backtest có thể tái tạo, không đưa file JSON lớn vào git
+data/backtests/
 .DS_Store
 logs/*.log
 mlruns/

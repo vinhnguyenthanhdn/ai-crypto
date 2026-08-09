@@ -3,7 +3,7 @@ dương sau phí").
 
 Khác Backtest (`scripts/run_backtest.py`, replay dữ liệu lịch sử) — script này
 thống kê trên các lệnh ENTRY/EXIT **thật** đã phát sinh qua `run.py` khi chạy
-định kỳ (cron/launchd, xem README). Chạy lại script này bất cứ lúc nào để xem
+định kỳ (launchd, xem README). Chạy lại script này bất cứ lúc nào để xem
 tiến độ tích luỹ, không cần chờ đủ N lệnh.
 
 Usage:

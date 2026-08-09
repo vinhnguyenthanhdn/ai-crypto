@@ -1,6 +1,14 @@
 # AI Crypto Signal Engine
 
-Signal engine phát hiện BUY/SELL trên crypto và gửi report qua Telegram. Không tự đặt lệnh thật — chỉ phát tín hiệu. Chi tiết kiến trúc/quyết định thiết kế xem [docs/decisions.md](docs/decisions.md); việc còn phải làm + lưu ý xem [docs/todo.md](docs/todo.md).
+Rule-based signal engine cho crypto, có Paper Trading và Telegram report. Hệ thống không đặt lệnh thật trên sàn.
+
+- Quyết định kiến trúc: `docs/decisions.md`.
+- Việc đang làm và dependency chặn test: `docs/inprogress.md`.
+- Việc chưa bắt đầu và rủi ro còn lại: `docs/todo.md`.
+- Kết quả và contract backtest đã chạy: `docs/backtest-results.md`.
+- Chi phí thực thi, thuế và ràng buộc pháp lý: `docs/execution-cost.md`.
+- Mức tin cậy từng nhánh code và lỗi đã xác nhận: `docs/code-audit.md`.
+- Quy tắc làm việc: `CLAUDE.md`.
 
 ## Cài đặt
 
@@ -8,82 +16,109 @@ Signal engine phát hiện BUY/SELL trên crypto và gửi report qua Telegram. 
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env   # điền API key, Telegram token...
+cp .env.example .env
 ```
 
-`.env` cần:
-- `EXCHANGE_API_KEY` / `EXCHANGE_API_SECRET` / `EXCHANGE_API_PASSPHRASE`: API key **read-only** (không cấp quyền trade/withdraw).
-- `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID`.
+API key chỉ được cấp quyền read-only, không cấp trade/withdraw. Không có API key hệ thống vẫn có thể dùng public market data. Telegram token/chat ID là tùy chọn.
 
-Không có các key này, hệ thống vẫn chạy được (dữ liệu giá qua CCXT là public), chỉ không gửi được Telegram.
+AI Report gọi Claude CLI cục bộ. Nếu CLI lỗi hoặc timeout, hệ thống dùng report rule-based.
 
-**AI Report** gọi qua Claude Code CLI cục bộ (`claude --print --model ...`), dùng OAuth subscription đã đăng nhập sẵn trên máy — giống cách các cron job khác trong hệ thống (OpenClaw) gọi Claude, không dùng Anthropic API key trả phí theo token. Yêu cầu máy chạy cron đã đăng nhập `claude` CLI (`claude /login`). Nếu lệnh `claude` lỗi/timeout, hệ thống tự dùng bản tóm tắt rule-based thay thế.
-
-## Chạy thử 1 lần
+## Chạy một lần
 
 ```bash
 source .venv/bin/activate
 python3 -m src.run
 ```
 
-Kết quả ghi vào `data/state.db` (bảng `signal_log`, `position_state`) và `logs/`.
+State mặc định nằm ở `data/state.db`.
 
-## Chạy định kỳ (launchd, macOS)
+## Runtime Paper Trading hiện tại
 
-macOS `crontab` chỉ hỗ trợ độ phân giải theo phút. Nếu cần chu kỳ dưới 1 phút, dùng launchd:
+macOS dùng launchd, không dùng cron. Bốn service hiện tại:
 
-Tạo file `~/Library/LaunchAgents/com.ai-crypto.run.plist`:
+- `com.ai-crypto.paper`: Rule Engine theo scheduled monitoring window.
+- `com.ai-crypto.collector-ws-paper`: WebSocket trades/tick/liquidation.
+- `com.ai-crypto.health-check`: health-check độc lập.
+- `com.ai-crypto.dashboard`: dashboard local.
 
-```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-  <key>Label</key><string>com.ai-crypto.run</string>
-  <key>ProgramArguments</key>
-  <array>
-    <string>/absolute/path/to/ai-crypto/.venv/bin/python3</string>
-    <string>-m</string>
-    <string>src.run</string>
-  </array>
-  <key>WorkingDirectory</key><string>/absolute/path/to/ai-crypto</string>
-  <key>StartInterval</key><integer>30</integer>
-  <key>StandardOutPath</key><string>/absolute/path/to/ai-crypto/logs/run.log</string>
-  <key>StandardErrorPath</key><string>/absolute/path/to/ai-crypto/logs/run.err.log</string>
-</dict>
-</plist>
-```
+Các plist nằm tại `~/Library/LaunchAgents/`. Rule Engine, collector và dashboard
+Rule Engine scheduler, collector và dashboard dùng `KeepAlive`; health-check
+dùng `StartInterval`.
 
 ```bash
-launchctl load ~/Library/LaunchAgents/com.ai-crypto.run.plist
+launchctl print gui/$(id -u)/com.ai-crypto.paper
+launchctl print gui/$(id -u)/com.ai-crypto.collector-ws-paper
+launchctl print gui/$(id -u)/com.ai-crypto.health-check
+launchctl print gui/$(id -u)/com.ai-crypto.dashboard
 ```
 
-Nếu chỉ cần chu kỳ theo phút, dùng `crontab -e` với dòng `* * * * * cd /path/to/ai-crypto && .venv/bin/python3 -m src.run` là đủ, không cần launchd.
+Scheduler nhẹ của Rule Engine neo mốc bắt đầu mỗi
+`ACTIVATION_INTERVAL_MINUTES`; mỗi activation poll giá theo
+`MONITOR_POLL_SECONDS` trong `MONITOR_WINDOW_MINUTES`, rồi nhả run lock và ngủ
+tới mốc start kế tiếp. Nếu một window chạy quá interval thì bỏ qua slot đã lỡ,
+không catch-up dồn; run lock vẫn là lớp bảo vệ thứ hai.
 
-## Paper Trading Dashboard
+## Runtime config
 
-Dashboard quản lý instance Paper Trading (cấu hình hiện tại xem `config/paper.env` hoặc trực tiếp trên dashboard) — xem trạng thái, sửa config, bật/tắt cron, xem log, xem lịch sử lệnh + PnL, kill switch.
+`config/paper.env` là runtime SSOT cho Rule Engine và collector qua
+`RUNTIME_ENV_PATH`; dashboard đọc/ghi cùng file. Thay đổi cần restart các service
+đang chạy để process nạp lại config.
 
-**Chạy local (không cần cloud):**
+## Dashboard
+
 ```bash
 source .venv/bin/activate
-python3 scripts/dashboard_server.py   # http://127.0.0.1:8787
+python3 scripts/dashboard_server.py
 ```
-Lần đầu chạy in ra mật khẩu ngẫu nhiên — lưu lại, không hiện lại lần 2 (xoá `config/dashboard_secret.json` để sinh mật khẩu mới).
 
-**Đã cài sẵn để chạy nền + truy cập từ xa** (launchd, xem `~/Library/LaunchAgents/com.ai-crypto.dashboard.plist` và `com.ai-crypto.cloudflared.plist`): dashboard chạy nền qua launchd, và Cloudflare Tunnel (quick tunnel, không cần tài khoản) expose ra 1 URL public. Lấy URL hiện tại:
+Dashboard bind tại `http://127.0.0.1:8787` và có xác thực bằng session/password. Cloudflare Tunnel chưa được cài trong runtime hiện tại.
+
+Dashboard đọc trực tiếp trạng thái launchd của `com.ai-crypto.paper`, hiển thị
+daemon/poll/refresh cadence và không còn endpoint/nút cron cũ.
+
+## Health-check
+
+Health-check chạy bằng launchd riêng và đọc DB Paper Trading:
+
 ```bash
-grep trycloudflare logs/cloudflared.log | tail -1
+.venv/bin/python3 scripts/health_check.py --db-path data/state_paper.db --label paper
 ```
-**Lưu ý quan trọng: URL quick tunnel KHÔNG cố định** — đổi mỗi khi `cloudflared` restart (reboot máy, hoặc launchd tự khởi động lại khi rớt kết nối). Muốn URL cố định cần tài khoản Cloudflare + 1 domain đã add vào Cloudflare để tạo named tunnel — chưa thiết lập, làm sau nếu cần.
 
-**3 service chạy nền cho instance Paper Trading** (bắt buộc phải đủ cả 3, thiếu `collector-ws-paper` thì giá sẽ đứng yên suốt cửa sổ theo dõi — xem `docs/todo.md`):
-- `com.ai-crypto.dashboard` — web dashboard
-- `com.ai-crypto.cloudflared` — tunnel truy cập từ xa
-- `com.ai-crypto.collector-ws-paper` — WebSocket tick giá thật (24/7, không theo chu kỳ cron, khác `run_paper.sh`)
+Heartbeat hiện đã được cập nhật trong tick loop, nhưng health model vẫn cần tách process/data/collector freshness. Xem `TODO-HEARTBEAT`.
 
-Quản lý: `launchctl unload/load ~/Library/LaunchAgents/com.ai-crypto.<tên>.plist`.
+## Backtest
+
+Quét nhanh bar-close:
+
+```bash
+.venv/bin/python3 scripts/run_backtest.py
+```
+
+Paper-style tick proxy:
+
+```bash
+.venv/bin/python3 scripts/run_paper_backtest.py --timeframe 1h --tick-timeframe 1m --days 180 --walk-forward 2 --no-mlflow
+```
+
+Paper-style backtest S/R dùng chung decision/risk/accounting primitives với live,
+fill proxy OHLC adverse-first và manifest tái lập được. Kết quả cũ của các engine
+khác vẫn provisional cho tới `TODO-REVALIDATE-BACKTESTS`.
+
+Accelerated Paper lifecycle cho staggered-pullback, dùng DB riêng và simulated
+clock (runner từ chối DB runtime thật):
+
+```bash
+.venv/bin/python scripts/run_staggered_paper_replay.py \
+  --flow-cache data/backtests/binance_btcusdt_spot_5m_flow_9y.json.gz \
+  --split-artifact data/backtests/staggered_slow_pullback_9y.json \
+  --years 3 --db data/backtests/staggered_paper_replay_3y.db \
+  --out data/backtests/staggered_paper_replay_3y.json --overwrite
+```
 
 ## Scope hiện tại
 
-Chỉ chạy: Technical, Order Flow, Derivatives, Cross-market, Sentiment (Fear & Greed), Market Regime — tất cả rule-based. AI Filter (News/Macro) và On-chain/Whale chưa triển khai, xem lý do và kế hoạch trong [docs/decisions.md](docs/decisions.md).
+- Runtime ra quyết định bằng Rule Engine; Entry Model chưa serving.
+- Champion hiện tại là `rule_engine_v1`; Challenger chưa được vận hành.
+- Basis-risk gate đã implement nhưng mặc định tắt.
+- Swap chưa được phép bật trước khi hoàn tất integration/parity tests.
+- Related Trade/RAG và Cloudflare remote access đang pending.

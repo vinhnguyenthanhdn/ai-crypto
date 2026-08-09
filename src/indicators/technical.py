@@ -106,6 +106,49 @@ def _detect_bullish_pattern(df: pd.DataFrame, idx: int = -1) -> bool:
     return bool(prev_bearish and last_bullish and engulfs)
 
 
+def _normalize_idx(n: int, idx: int) -> int:
+    return idx if idx >= 0 else n + idx
+
+
+def find_recent_swing_low(df: pd.DataFrame, idx: int = -1, window: int = 3, lookback: int = 50) -> float | None:
+    """Swing low gần nhất TRƯỚC `idx` (SL structural provisional) —
+    fractal đơn giản: 1 bar được coi là swing low nếu `low` thấp hơn `window`
+    bar liền trước VÀ `window` bar liền sau nó. Chỉ xét bar đã có đủ `window`
+    bar SAU nó trong `df` để xác nhận — không nhìn tương lai thật, các bar quá
+    gần `idx` (chưa đủ bar sau để confirm) tự động bị loại khỏi kết quả.
+
+    Trả về giá `low` của swing point gần `idx` nhất trong `lookback` bar trước
+    đó, `None` nếu không tìm được (dữ liệu quá ngắn hoặc không có swing rõ).
+    """
+    n = len(df)
+    end = _normalize_idx(n, idx)
+    lows = df["low"].to_numpy()
+    start = max(window, end - lookback)
+    for i in range(end - window, start - 1, -1):
+        if i - window < 0 or i + window >= n:
+            continue
+        left, right = lows[i - window:i], lows[i + 1:i + 1 + window]
+        if lows[i] <= left.min() and lows[i] <= right.min():
+            return float(lows[i])
+    return None
+
+
+def find_recent_swing_high(df: pd.DataFrame, idx: int = -1, window: int = 3, lookback: int = 50) -> float | None:
+    """Mirror của `find_recent_swing_low` — dùng làm TP structural (resistance/
+    previous high gần nhất) thay vì đo thuần theo R:R."""
+    n = len(df)
+    end = _normalize_idx(n, idx)
+    highs = df["high"].to_numpy()
+    start = max(window, end - lookback)
+    for i in range(end - window, start - 1, -1):
+        if i - window < 0 or i + window >= n:
+            continue
+        left, right = highs[i - window:i], highs[i + 1:i + 1 + window]
+        if highs[i] >= left.max() and highs[i] >= right.max():
+            return float(highs[i])
+    return None
+
+
 def pullback_ok(df: pd.DataFrame, idx: int = -1, side: str = "long", current_price: float | None = None) -> bool:
     """Pullback filter: chỉ cho vào lệnh khi giá đã hồi về gần EMA20 trong khi
     trend (EMA20 vs EMA50) còn giữ đúng hướng — chặn breakout chasing (giá đã

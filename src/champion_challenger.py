@@ -1,9 +1,7 @@
-"""Champion–Challenger qua MLflow Model Registry alias.
+"""Tooling Champion–Challenger qua MLflow Model Registry alias.
 
-Luôn có Champion (đang giao dịch) và Challenger (đang thử nghiệm) — dùng alias
-`@champion`/`@challenger` trên registry `entry-model`. Serving code chỉ cần
-load theo alias `models:/entry-model@champion`, không cần đổi code khi promote
-version mới.
+Runtime hiện dùng Champion rule-based và chưa load model MLflow. Module này chỉ
+chuẩn bị thao tác alias cho `TODO-CHALLENGER`, không chứng minh model đang serving.
 """
 import mlflow
 from mlflow.tracking import MlflowClient

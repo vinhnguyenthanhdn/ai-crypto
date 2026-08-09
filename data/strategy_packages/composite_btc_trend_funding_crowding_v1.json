@@ -1,0 +1,70 @@
+{
+  "package_id": "composite_btc_trend_funding_crowding_v1",
+  "status": "PAPER_CHALLENGER",
+  "live_execution": false,
+  "allocation": {
+    "btc_spot_vol_scaled_trend_v1": 0.5,
+    "funding_crowding_trend_v1": 0.5,
+    "accounting": "independent sleeve equity; no implicit daily rebalancing"
+  },
+  "frequency": {
+    "definition": "unique fast-sleeve signal timestamp",
+    "simultaneous_assets": "one correlated risk episode",
+    "target_per_week": [5, 10]
+  },
+  "signal_policy": {
+    "news": "disabled",
+    "sentiment_feed": "disabled",
+    "direction": ["closed_4h_trend", "closed_1d_trend"],
+    "entry": "closed_1h_breakout",
+    "crowding_veto": "causal_funding_z_score",
+    "liquidity": "trailing_30d_dollar_volume"
+  },
+  "funding_crowding_contract": {
+    "top_n_liquid": 12,
+    "max_concurrent": 2,
+    "funding_crowding_z": 0.0,
+    "risk_per_episode_pct": 0.25,
+    "maximum_capital_fraction": 0.25,
+    "entry_timeframe": "1h",
+    "context": ["closed_4h", "closed_1d"],
+    "breakout_lookback_bars": 4,
+    "breakout_buffer_atr": 0.1,
+    "base_stop_atr": 2.0,
+    "maximum_stop_atr": 4.0,
+    "risk_reward": 4.0,
+    "maximum_hold_hours": 24,
+    "cooldown_hours": 3,
+    "minimum_trend_strength": 1.0
+  },
+  "evidence": {
+    "historical": "data/backtests/composite_btc_trend_funding_crowding_5y.json",
+    "runtime_parity": "data/backtests/funding_crowding_runtime_parity_5y.json",
+    "paper_lifecycle": "data/backtests/funding_crowding_paper_5y.json",
+    "paper_database": "data/backtests/funding_crowding_paper_5y.db",
+    "fresh_forward_status": "~/Library/Application Support/ai-crypto-funding-forward/data/backtests/composite_forward_status.json",
+    "fresh_forward_funding_database": "~/Library/Application Support/ai-crypto-funding-forward/data/state_funding_crowding_forward.db",
+    "fresh_forward_btc_database": "~/Library/Application Support/ai-crypto-funding-forward/data/state_btc_spot_trend_forward.db",
+    "fresh_forward_scheduler": "com.ai-crypto.funding-crowding-forward",
+    "recent_30d_cross_venue_diagnostic": "data/backtests/recent_composite_venues_30d.json"
+  },
+  "promotion_gate": {
+    "reason": "historical holdouts were observed during discovery",
+    "minimum_observed_days": 28,
+    "minimum_hourly_coverage_ratio": 0.9,
+    "hourly_input_lineage": "one complete 15-symbol snapshot per observed signal hour",
+    "minimum_closed_trades": 30,
+    "minimum_independent_risk_episodes": 30,
+    "episodes_per_week": [5, 10],
+    "rolling_7d_frequency": {
+      "median_episodes": [5, 10],
+      "minimum_target_window_ratio": 0.5,
+      "maximum_zero_window_ratio": 0.1
+    },
+    "base": {"minimum_net_return_pct": 0, "minimum_profit_factor": 1},
+    "stress": {"minimum_net_return_pct": 0, "minimum_profit_factor": 1,
+               "round_trip_cost_multiple": 2},
+    "maximum_drawdown_pct": 20,
+    "live_execution_must_remain": false
+  }
+}

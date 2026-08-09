@@ -5,6 +5,8 @@ Market Regime -> Sentiment Filter -> Order Flow Filter -> Technical Filter
 -> Risk Engine -> BUY / HOLD / SELL
 (Macro/News/On-chain Filter chưa triển khai)
 """
+from datetime import datetime, timezone
+
 import pandas as pd
 
 from .. import config
@@ -67,7 +69,9 @@ def decide_exit(
     current_price: float,
     df_indicators: pd.DataFrame,
     idx: int = -1,
-    min_hold_satisfied: bool = True,
+    current_time=None,
+    max_hold_minutes: float | None = None,
+    min_hold_satisfied: bool | None = None,
 ) -> tuple[bool, str]:
     """Điều kiện thoát lệnh (state machine sau khi BUY).
 
@@ -75,12 +79,10 @@ def decide_exit(
     cụ thể để đọc trực tiếp từ dataframe đã `add_indicators()` 1 lần, tránh
     phải cắt slice/tính lại indicator mỗi bar (xem `technical.score_from_indicators`).
 
-    `min_hold_satisfied`: Stop Loss/Take Profit luôn được kiểm tra ngay từ bar
-    đầu (bảo vệ vốn không thể trì hoãn), nhưng các rule thoát theo momentum
-    (MACD/RSI/Volume/EMA) chỉ áp dụng sau khi giữ lệnh đủ `MIN_HOLD_MINUTES` —
-    phát hiện từ AI Review Backtest: kiểm tra momentum ngay bar kế tiếp lúc vào
-    lệnh khiến phần lớn lệnh bị đá ra trong 1-2 bar (5-10 phút), chưa đủ thời
-    gian phát triển, làm win rate thấp bất thường.
+    Không có minimum hold; tham số `min_hold_satisfied` chỉ còn để caller cũ
+    không crash và bị bỏ qua. `current_time` cho backtest truyền timestamp của
+    tick/bar; live mặc định dùng UTC now. Quá `max_hold_minutes` đóng bằng
+    TIMEOUT_EXIT.
     """
     last = df_indicators.iloc[idx]
     stop_price = position_state["stop_price"]
@@ -92,8 +94,8 @@ def decide_exit(
     if take_profit_price is not None and current_price >= take_profit_price:
         return True, f"Đạt take profit ({current_price} >= {take_profit_price})"
 
-    if not min_hold_satisfied:
-        return False, ""
+    if _max_hold_reached(position_state.get("entry_time"), current_time, max_hold_minutes):
+        return True, f"TIMEOUT_EXIT: giữ lệnh đủ {max_hold_minutes or config.MAX_HOLD_MINUTES:g} phút"
 
     if len(df_indicators) >= 2 and idx != 0:
         prev = df_indicators.iloc[idx - 1]
@@ -137,7 +139,9 @@ def decide_short_exit(
     current_price: float,
     df_indicators: pd.DataFrame,
     idx: int = -1,
-    min_hold_satisfied: bool = True,
+    current_time=None,
+    max_hold_minutes: float | None = None,
+    min_hold_satisfied: bool | None = None,
 ) -> tuple[bool, str]:
     """Mirror của `decide_exit` cho lệnh Short — dùng để thử nghiệm chiến lược
     Short riêng, chưa dùng trong Rule Engine live/`run.py`."""
@@ -151,8 +155,8 @@ def decide_short_exit(
     if take_profit_price is not None and current_price <= take_profit_price:
         return True, f"Đạt take profit short ({current_price} <= {take_profit_price})"
 
-    if not min_hold_satisfied:
-        return False, ""
+    if _max_hold_reached(position_state.get("entry_time"), current_time, max_hold_minutes):
+        return True, f"TIMEOUT_EXIT: giữ lệnh đủ {max_hold_minutes or config.MAX_HOLD_MINUTES:g} phút"
 
     if len(df_indicators) >= 2 and idx != 0:
         prev = df_indicators.iloc[idx - 1]
@@ -176,3 +180,65 @@ def decide_short_exit(
         return True, "EMA20 cắt lên EMA50"
 
     return False, ""
+
+
+def decide_support_resistance_entry(buy_score: float, sell_score: float,
+                                    threshold: float | None = None,
+                                    buy_eligible: bool = True,
+                                    ineligible_reason: str | None = None) -> tuple[str, str]:
+    """Decision thuần S/R; không áp dụng regime/pullback hay layer khác."""
+    threshold = config.SR_DECISION_THRESHOLD if threshold is None else threshold
+    if buy_score >= threshold and sell_score >= threshold:
+        return "HOLD", "Support và Resistance đồng thời đủ điểm — vùng quá hẹp/xung đột"
+    if not buy_eligible:
+        return "IGNORE", f"S/R chưa đủ điều kiện BUY ({ineligible_reason or 'không rõ'}) — observation score {buy_score}"
+    if buy_score >= threshold:
+        return "BUY", f"Support score {buy_score} >= {threshold}"
+    if buy_score >= config.WATCH_SCORE_THRESHOLD:
+        return "WATCH", f"Support score {buy_score} trong vùng theo dõi"
+    return "IGNORE", f"Support score {buy_score} dưới ngưỡng {threshold}"
+
+
+def decide_support_resistance_exit(position_state: dict, current_price: float,
+                                   sell_score: float, current_time=None,
+                                   threshold: float | None = None) -> tuple[bool, str]:
+    """Exit Long bằng SL/TP/timeout hoặc SELL score phá support."""
+    threshold = config.SR_DECISION_THRESHOLD if threshold is None else threshold
+    stop_price = position_state.get("stop_price")
+    take_profit_price = position_state.get("take_profit_price")
+    if stop_price is not None and current_price <= stop_price:
+        return True, f"STOP_LOSS ({current_price} <= {stop_price})"
+    if take_profit_price is not None and current_price >= take_profit_price:
+        tp_reason = position_state.get("tp_reason") or "TAKE_PROFIT"
+        return True, f"{tp_reason} ({current_price} >= {take_profit_price})"
+    if _max_hold_reached(position_state.get("entry_time"), current_time):
+        return True, f"TIMEOUT_EXIT: giữ lệnh đủ {config.MAX_HOLD_MINUTES:g} phút"
+    if sell_score >= threshold:
+        return True, f"SELL_SCORE: support breakdown score {sell_score} >= {threshold}"
+    return False, ""
+
+
+def _utc_datetime(value) -> datetime:
+    """Chuẩn hóa ISO string/datetime/pandas Timestamp về UTC aware datetime."""
+    if value is None:
+        return datetime.now(timezone.utc)
+    if isinstance(value, str):
+        value = datetime.fromisoformat(value)
+    elif hasattr(value, "to_pydatetime"):
+        value = value.to_pydatetime()
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
+
+def holding_minutes(entry_time, current_time=None) -> float:
+    if entry_time is None:
+        return 0.0
+    return max(0.0, (_utc_datetime(current_time) - _utc_datetime(entry_time)).total_seconds() / 60)
+
+
+def _max_hold_reached(entry_time, current_time=None, max_hold_minutes: float | None = None) -> bool:
+    if entry_time is None:
+        return False
+    limit = config.MAX_HOLD_MINUTES if max_hold_minutes is None else max_hold_minutes
+    return limit > 0 and holding_minutes(entry_time, current_time) >= limit

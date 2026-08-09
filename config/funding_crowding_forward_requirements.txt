@@ -1,0 +1,4 @@
+numpy==2.4.6
+pandas==2.3.3
+python-dotenv==1.2.2
+requests==2.34.2

@@ -9,8 +9,6 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-set -a
-source config/paper.env
-set +a
+export RUNTIME_ENV_PATH="config/paper.env"
 
 .venv/bin/python3 -m src.collector_ws

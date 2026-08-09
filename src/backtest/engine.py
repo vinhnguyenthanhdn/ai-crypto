@@ -81,7 +81,6 @@ def run_backtest(
         raise ValueError(f"Cần tối thiểu {WARMUP_BARS + 2} bar để warmup indicator, chỉ có {n}")
 
     cooldown_bars = max(1, round(config.COOLDOWN_MINUTES / _timeframe_minutes(timeframe)))
-    min_hold_bars = max(1, round(config.MIN_HOLD_MINUTES / _timeframe_minutes(timeframe)))
 
     # Tính indicator 1 lần cho toàn bộ lịch sử (O(n)) — các indicator trong `ta`
     # đều causal (chỉ nhìn về quá khứ), nên đọc theo `idx` ở mỗi bar là hợp lệ,
@@ -91,6 +90,7 @@ def run_backtest(
 
     trades = []
     position = None
+    equity_usd = float(config.ACCOUNT_EQUITY_USD)
     cooldown_until_idx = -1
     n_skipped_cost_gate = 0
     open_vals = df["open"].to_numpy()
@@ -105,20 +105,27 @@ def run_backtest(
         fill_price = float(open_vals[i + 1])
 
         if position is not None:
-            min_hold_satisfied = (i - position["entry_idx"]) >= min_hold_bars
             should_exit, reason = decision.decide_exit(
-                position, float(close_vals[i]), enriched, idx=i, min_hold_satisfied=min_hold_satisfied,
+                position, float(close_vals[i]), enriched, idx=i, current_time=df["ts"].iloc[i],
             )
             if should_exit:
-                exit_price = fill_price * (1 - slippage_pct)
-                pnl_pct = risk.compute_pnl_pct(position["entry_price"], exit_price) - fee_pct * 100 * 2
+                accounting = risk.compute_trade_accounting(
+                    position["entry_price"], fill_price, position["size_usd"],
+                    side="long", fee_pct=fee_pct, slippage_pct=slippage_pct,
+                    equity_before_usd=equity_usd,
+                )
+                equity_usd = accounting["equity_after_usd"]
                 trades.append(
                     {
                         "entry_idx": position["entry_idx"],
                         "entry_price": position["entry_price"],
                         "exit_idx": i + 1,
-                        "exit_price": round(exit_price, 2),
-                        "pnl_pct": round(pnl_pct, 3),
+                        "exit_price": round(fill_price, 2),
+                        "pnl_pct": accounting["return_on_equity_pct"],
+                        "net_pnl_pct": accounting["net_pnl_pct"],
+                        "pnl_usd": accounting["net_pnl_usd"],
+                        "size_usd": position["size_usd"],
+                        "accounting": accounting,
                         "reason": reason,
                     }
                 )
@@ -134,23 +141,28 @@ def run_backtest(
             buy_threshold=buy_threshold, watch_threshold=watch_threshold,
         )
         if action == "BUY":
-            entry_price = fill_price * (1 + slippage_pct)
+            entry_price = fill_price
             atr = float(enriched.iloc[i]["atr"])
             if pd.isna(atr) or atr <= 0:
                 continue
-            plan = risk.compute_position_plan(entry_price, atr, fee_pct=fee_pct, slippage_pct=slippage_pct)
+            plan = risk.compute_position_plan(
+                entry_price, atr, fee_pct=fee_pct, slippage_pct=slippage_pct,
+                account_equity_usd=equity_usd,
+            )
             if not plan["edge_viable"]:
                 n_skipped_cost_gate += 1
                 continue
             position = {
                 "entry_idx": i + 1,
+                "entry_time": df["ts"].iloc[i + 1],
                 "entry_price": entry_price,
                 "stop_price": plan["stop_price"],
                 "take_profit_price": plan["take_profit_price"],
+                "size_usd": plan["size_usd"],
             }
 
     n_trades = len(trades)
-    stats = compute_stats([t["pnl_pct"] for t in trades], config.ACCOUNT_EQUITY_USD)
+    stats = compute_accounting_stats(trades, config.ACCOUNT_EQUITY_USD)
 
     return {
         "symbol": symbol,
@@ -200,4 +212,59 @@ def compute_stats(trade_pnl_pcts: list[float], init_cash: float) -> dict:
         "max_drawdown_pct": round(max_drawdown_pct, 3),
         "sharpe_ratio": round(sharpe, 3) if sharpe is not None else None,
         "win_rate_pct": round(win_rate_pct, 2),
+    }
+
+
+def compute_accounting_stats(trades: list[dict], init_cash: float,
+                             pnl_key: str = "net_pnl_usd") -> dict:
+    """Stats từ PnL USD thật theo position size, không giả định mỗi trade dùng
+    toàn equity. `trades` có accounting fields hoặc field pnl_key ở top-level."""
+    if not trades:
+        return {
+            "initial_equity_usd": round(init_cash, 2),
+            "final_equity_usd": round(init_cash, 2),
+            "total_pnl_usd": 0.0,
+            "total_return_pct": 0.0,
+            "max_drawdown_pct": 0.0,
+            "profit_factor": None,
+            "profit_factor_no_losses": False,
+            "sharpe_ratio": None,
+            "win_rate_pct": None,
+        }
+    pnl_values = []
+    for trade in trades:
+        accounting = trade.get("accounting", trade)
+        pnl_values.append(float(accounting[pnl_key]))
+    equity = [float(init_cash)]
+    returns = []
+    for pnl_usd in pnl_values:
+        before = equity[-1]
+        returns.append(pnl_usd / before if before else 0.0)
+        equity.append(before + pnl_usd)
+    equity_arr = np.array(equity, dtype=float)
+    peak = np.maximum.accumulate(equity_arr)
+    drawdown = np.divide(
+        peak - equity_arr, peak, out=np.zeros_like(peak), where=peak > 0,
+    ) * 100
+    wins = [p for p in pnl_values if p > 0]
+    losses = [p for p in pnl_values if p < 0]
+    no_losses = bool(wins and not losses)
+    # JSON contract không cho Infinity; tách cờ để vẫn biểu diễn đúng trường hợp
+    # có lãi nhưng chưa có trade lỗ.
+    profit_factor = sum(wins) / abs(sum(losses)) if losses else None
+    returns_arr = np.array(returns, dtype=float)
+    sharpe = (
+        float(returns_arr.mean() / returns_arr.std() * np.sqrt(len(returns_arr)))
+        if len(returns_arr) > 1 and returns_arr.std() > 0 else None
+    )
+    return {
+        "initial_equity_usd": round(float(init_cash), 2),
+        "final_equity_usd": round(float(equity_arr[-1]), 2),
+        "total_pnl_usd": round(float(sum(pnl_values)), 4),
+        "total_return_pct": round(float((equity_arr[-1] / init_cash - 1) * 100), 4) if init_cash else 0.0,
+        "max_drawdown_pct": round(float(drawdown.max()), 4),
+        "profit_factor": round(float(profit_factor), 4) if profit_factor is not None else None,
+        "profit_factor_no_losses": no_losses,
+        "sharpe_ratio": round(sharpe, 4) if sharpe is not None else None,
+        "win_rate_pct": round(len(wins) / len(pnl_values) * 100, 2),
     }

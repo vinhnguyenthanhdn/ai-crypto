@@ -158,7 +158,6 @@ def run_instrumented(df: pd.DataFrame, enriched: pd.DataFrame, scores: pd.DataFr
     high_vals, low_vals = df["high"].to_numpy(), df["low"].to_numpy()
     ts_vals = df["ts"].to_numpy() if "ts" in df.columns else np.arange(n)
     cooldown_bars = max(1, round(config.COOLDOWN_MINUTES / _timeframe_minutes(timeframe)))
-    min_hold_bars = max(1, round(config.MIN_HOLD_MINUTES / _timeframe_minutes(timeframe)))
 
     exit_fn = decision.decide_exit if side == "long" else decision.decide_short_exit
     plan_fn = risk.compute_position_plan if side == "long" else risk.compute_short_position_plan
@@ -184,7 +183,7 @@ def run_instrumented(df: pd.DataFrame, enriched: pd.DataFrame, scores: pd.DataFr
             else:
                 should_exit, reason = exit_fn(
                     position, float(close_vals[i]), enriched, idx=i,
-                    min_hold_satisfied=(held >= min_hold_bars),
+                    current_time=df["ts"].iloc[i],
                 )
                 if exit_mode == "sltp" and should_exit and "stop loss" not in reason and "take profit" not in reason:
                     should_exit, reason = False, ""
@@ -247,7 +246,8 @@ def run_instrumented(df: pd.DataFrame, enriched: pd.DataFrame, scores: pd.DataFr
                 continue
             row = scores.loc[i] if random_entry_seed is None else None
             position = {
-                "entry_idx": i + 1, "entry_price": entry_price, "fill_price": fill_price,
+                "entry_idx": i + 1, "entry_time": df["ts"].iloc[i + 1],
+                "entry_price": entry_price, "fill_price": fill_price,
                 "stop_price": plan["stop_price"], "take_profit_price": plan["take_profit_price"],
                 "atr_pct": atr / fill_price * 100,
                 "total_score": float(row["total_score"]) if row is not None else None,

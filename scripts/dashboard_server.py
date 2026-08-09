@@ -11,11 +11,15 @@ không hiện lại được (chỉ có hash trong config/dashboard_secret.json)
 xoá file đó rồi chạy lại để sinh mật khẩu mới.
 """
 import json
+import os
+import math
+import plistlib
 import re
 import secrets
 import sqlite3
 import subprocess
 import sys
+import time
 from datetime import datetime, timedelta, timezone
 from functools import wraps
 from pathlib import Path
@@ -31,16 +35,19 @@ from src import state_store  # noqa: E402
 from src.backtest.engine import compute_stats  # noqa: E402
 
 CONFIG_PATH = BASE_DIR / "config" / "paper.env"
-DASHBOARD_STATE_PATH = BASE_DIR / "config" / "dashboard_state.json"
 SECRET_PATH = BASE_DIR / "config" / "dashboard_secret.json"
-SCRIPT_PATH = str(BASE_DIR / "scripts" / "run_paper.sh")
-CRON_LOG_PATH = BASE_DIR / "logs" / "run_paper_cron.log"
+RUNTIME_LABEL = "com.ai-crypto.paper"
+RUNTIME_LOG_PATH = BASE_DIR / "logs" / "run_paper_launchd.log"
+RUNTIME_PLIST_PATH = Path.home() / "Library" / "LaunchAgents" / f"{RUNTIME_LABEL}.plist"
 DEFAULT_DB_PATH = str(BASE_DIR / "data" / "state_paper.db")
+BACKTEST_30D_PATH = BASE_DIR / "data" / "backtests" / "sr_30d_latest.json"
+_BACKTEST_CACHE = {"mtime_ns": None, "data": None}
 
 # Field cho phép sửa qua dashboard — DB_PATH/LOG_PATH cố tình không cho sửa qua UI
 # (đổi sai có thể trỏ nhầm DB, làm mất khả năng phân biệt với live 5m).
 EDITABLE_FIELDS = {
     "EXCHANGE_ID": str,
+    "SCORING_PROFILE": str,
     "TIMEFRAME": str,
     "MTF_TIMEFRAMES": str,
     "BUY_SCORE_THRESHOLD": float,
@@ -48,6 +55,7 @@ EDITABLE_FIELDS = {
     "PULLBACK_ATR_BUFFER": float,
     "MONITOR_WINDOW_MINUTES": float,
     "MONITOR_POLL_SECONDS": float,
+    "ACTIVATION_INTERVAL_MINUTES": float,
     "STRATEGY_LABEL": str,
 }
 
@@ -56,6 +64,7 @@ EDITABLE_FIELDS = {
 # ở đây thay vì chỉ ép kiểu str chung chung như các field khác.
 FIELD_CHOICES = {
     "EXCHANGE_ID": {"binance", "okx"},
+    "SCORING_PROFILE": {"champion", "support_resistance_only"},
 }
 
 
@@ -161,6 +170,8 @@ def api_get_config():
     return jsonify({
         "values": values,
         "choices": {k: sorted(v) for k, v in FIELD_CHOICES.items()},
+        "effective_source": str(CONFIG_PATH),
+        "restart_required_after_change": True,
     })
 
 
@@ -188,119 +199,119 @@ def api_set_config():
     if errors:
         return jsonify({"ok": False, "errors": errors}), 400
     _write_config(cfg)
-    return jsonify({"ok": True, "config": {k: cfg.get(k, "") for k in EDITABLE_FIELDS}})
+    return jsonify({
+        "ok": True,
+        "config": {k: cfg.get(k, "") for k in EDITABLE_FIELDS},
+        "effective_source": str(CONFIG_PATH),
+        "restart_required": True,
+    })
 
 
-# ----------------------------------------------------------------------- cron
+# -------------------------------------------------------------------- runtime
 
-def _load_dashboard_state() -> dict:
-    if DASHBOARD_STATE_PATH.exists():
-        return json.loads(DASHBOARD_STATE_PATH.read_text())
-    return {"cron_enabled": False, "cron_minutes": 30}
-
-
-def _save_dashboard_state(state: dict):
-    DASHBOARD_STATE_PATH.write_text(json.dumps(state, indent=2))
-
-
-def _read_crontab() -> list[str]:
-    result = subprocess.run(["crontab", "-l"], capture_output=True, text=True)
-    if result.returncode != 0:
-        return []
-    return [l for l in result.stdout.splitlines() if l.strip()]
-
-
-def _write_crontab(lines: list[str]):
-    content = ("\n".join(lines) + "\n") if lines else ""
-    subprocess.run(["crontab", "-"], input=content, text=True, check=True)
-
-
-def _cron_line(minutes: int) -> str:
-    return f"*/{minutes} * * * * {SCRIPT_PATH} >> {CRON_LOG_PATH} 2>&1"
-
-
-def _next_cron_run_iso(minutes: int) -> str:
-    """Cron `*/N * * * *` kích hoạt khi phút chia hết cho N — tính đúng mốc kế
-    tiếp theo lịch, không suy từ last_run_at (lần chạy tay/lỗi sẽ làm sai lệch)."""
-    now = datetime.now(timezone.utc)
-    base = now.replace(second=0, microsecond=0)
-    remainder = base.minute % minutes
-    if remainder == 0 and now.second == 0:
-        next_time = base
-    else:
-        next_time = base + timedelta(minutes=(minutes - remainder if remainder else minutes))
-    return next_time.isoformat()
-
-
-def _cron_status() -> dict:
-    lines = _read_crontab()
-    ours = [l for l in lines if SCRIPT_PATH in l]
-    state = _load_dashboard_state()
-    minutes = state.get("cron_minutes", 30)
-    if ours:
-        m = re.match(r"\*/(\d+)", ours[0])
-        if m:
-            minutes = int(m.group(1))
-    enabled = bool(ours)
+def _runtime_status() -> dict:
+    """Trạng thái launchd thật; scheduler Python neo start-to-start, không cron."""
+    cfg = _read_config()
+    continuous = cfg.get("RUN_CONTINUOUS", "false").lower() in ("1", "true", "yes", "on")
+    scheduled = cfg.get("RUN_SCHEDULED", "false").lower() in ("1", "true", "yes", "on")
+    try:
+        poll_seconds = float(cfg.get("MONITOR_POLL_SECONDS", "5"))
+        refresh_minutes = float(cfg.get("MONITOR_WINDOW_MINUTES", "5"))
+        activation_minutes = float(cfg.get("ACTIVATION_INTERVAL_MINUTES", "60"))
+    except ValueError:
+        poll_seconds, refresh_minutes, activation_minutes = None, None, None
+    target = f"gui/{os.getuid()}/{RUNTIME_LABEL}"
+    result = subprocess.run(
+        ["launchctl", "print", target], capture_output=True, text=True,
+    )
+    output = result.stdout if result.returncode == 0 else ""
+    state_match = re.search(r"^\s*state = (\S+)", output, re.MULTILINE)
+    pid_match = re.search(r"^\s*pid = (\d+)", output, re.MULTILINE)
+    state = state_match.group(1) if state_match else "not_loaded"
     return {
-        "enabled": enabled, "minutes": minutes, "line": ours[0] if ours else None,
-        "next_run_at": _next_cron_run_iso(minutes) if enabled else None,
+        "label": RUNTIME_LABEL,
+        "mode": "continuous_daemon" if continuous else ("scheduled_window" if scheduled else "single_cycle"),
+        "loaded": result.returncode == 0,
+        "running": state == "running",
+        "state": state,
+        "pid": int(pid_match.group(1)) if pid_match else None,
+        "poll_seconds": poll_seconds,
+        "refresh_minutes": refresh_minutes,
+        "activation_minutes": activation_minutes,
     }
 
 
-@app.route("/api/cron")
+def _apply_runtime_schedule(activation_minutes: float) -> None:
+    """Để scheduler nhẹ sống bằng KeepAlive; cadence nằm trong Python runtime."""
+    if not RUNTIME_PLIST_PATH.exists():
+        raise RuntimeError(f"Không tìm thấy plist: {RUNTIME_PLIST_PATH}")
+    old_bytes = RUNTIME_PLIST_PATH.read_bytes()
+    plist = plistlib.loads(old_bytes)
+    plist.pop("StartInterval", None)
+    plist["KeepAlive"] = True
+    plist["RunAtLoad"] = True
+    target = f"gui/{os.getuid()}/{RUNTIME_LABEL}"
+    domain = f"gui/{os.getuid()}"
+    try:
+        RUNTIME_PLIST_PATH.write_bytes(plistlib.dumps(plist, fmt=plistlib.FMT_XML))
+        subprocess.run(["launchctl", "bootout", target], capture_output=True, text=True)
+        time.sleep(1)
+        result = subprocess.run(
+            ["launchctl", "bootstrap", domain, str(RUNTIME_PLIST_PATH)],
+            capture_output=True, text=True,
+        )
+        if result.returncode != 0:
+            raise RuntimeError(result.stderr.strip() or "launchctl bootstrap thất bại")
+    except Exception:
+        RUNTIME_PLIST_PATH.write_bytes(old_bytes)
+        subprocess.run(["launchctl", "bootout", target], capture_output=True, text=True)
+        time.sleep(1)
+        subprocess.run(
+            ["launchctl", "bootstrap", domain, str(RUNTIME_PLIST_PATH)],
+            capture_output=True, text=True,
+        )
+        raise
+
+
+@app.route("/api/runtime/config", methods=["POST"])
 @login_required
-def api_cron_status():
-    return jsonify(_cron_status())
-
-
-@app.route("/api/run-now", methods=["POST"])
-@login_required
-def api_run_now():
-    """Trigger tay ngay lập tức — không đợi lịch cron. `run.py` tự dùng
-    `run_lock()` nên gọi tay lúc cron đang chạy chỉ bị bỏ qua an toàn, không
-    xung đột. Chạy nền (Popen, không đợi) vì 1 lần chạy có thể mất tới
-    MONITOR_WINDOW_MINUTES phút (cửa sổ theo dõi) — request không nên treo lâu
-    vậy."""
-    CRON_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
-    with open(CRON_LOG_PATH, "a") as log_f:
-        subprocess.Popen([SCRIPT_PATH], stdout=log_f, stderr=log_f, start_new_session=True)
-    return jsonify({"ok": True, "message": "Đã trigger — theo dõi qua log/tick feed."})
-
-
-@app.route("/api/cron/toggle", methods=["POST"])
-@login_required
-def api_cron_toggle():
-    data = request.get_json(force=True) or {}
-    enabled = bool(data.get("enabled"))
-    lines = [l for l in _read_crontab() if SCRIPT_PATH not in l]
-    state = _load_dashboard_state()
-    state["cron_enabled"] = enabled
-    if enabled:
-        lines.append(_cron_line(state.get("cron_minutes", 30)))
-    _write_crontab(lines)
-    _save_dashboard_state(state)
-    return jsonify(_cron_status())
-
-
-@app.route("/api/cron/frequency", methods=["POST"])
-@login_required
-def api_cron_frequency():
+def api_runtime_config():
+    """Lưu activation/window/poll và áp dụng scheduler launchd ngay."""
+    _use_paper_db()
+    if state_store.get_open_positions():
+        return jsonify({"ok": False, "error": "Không đổi scheduler khi đang có vị thế mở"}), 409
     data = request.get_json(force=True) or {}
     try:
-        minutes = int(data.get("minutes"))
-        if not (1 <= minutes <= 1440):
+        activation = float(data.get("activation_minutes"))
+        window = float(data.get("window_minutes"))
+        poll = float(data.get("poll_seconds"))
+        if not all(math.isfinite(v) for v in (activation, window, poll)):
             raise ValueError
-    except (TypeError, ValueError):
-        return jsonify({"ok": False, "error": "Tần suất phải là số nguyên 1-1440 phút"}), 400
-    state = _load_dashboard_state()
-    state["cron_minutes"] = minutes
-    lines = [l for l in _read_crontab() if SCRIPT_PATH not in l]
-    if state.get("cron_enabled", True):
-        lines.append(_cron_line(minutes))
-    _write_crontab(lines)
-    _save_dashboard_state(state)
-    return jsonify(_cron_status())
+        if not (1 <= activation <= 10080):
+            raise ValueError("Kích hoạt phải trong 1–10080 phút")
+        if not (0.5 <= window <= 1440):
+            raise ValueError("Monitor window phải trong 0.5–1440 phút")
+        if window > activation:
+            raise ValueError("Monitor window không được lớn hơn tần suất kích hoạt")
+        if not (1 <= poll <= 300):
+            raise ValueError("Poll phải trong 1–300 giây")
+    except (TypeError, ValueError) as exc:
+        return jsonify({"ok": False, "error": str(exc) or "Cấu hình runtime không hợp lệ"}), 400
+
+    cfg = _read_config()
+    old_config = CONFIG_PATH.read_text()
+    cfg["ACTIVATION_INTERVAL_MINUTES"] = str(activation)
+    cfg["MONITOR_WINDOW_MINUTES"] = str(window)
+    cfg["MONITOR_POLL_SECONDS"] = str(poll)
+    cfg["RUN_SCHEDULED"] = "true"
+    cfg["RUN_CONTINUOUS"] = "false"
+    try:
+        _write_config(cfg)
+        _apply_runtime_schedule(activation)
+    except Exception as exc:  # rollback config; plist rollback nằm trong helper
+        CONFIG_PATH.write_text(old_config)
+        return jsonify({"ok": False, "error": f"Không áp dụng được scheduler: {exc}"}), 500
+    return jsonify({"ok": True, "runtime": _runtime_status()})
 
 
 # ---------------------------------------------------------------------- status
@@ -309,7 +320,16 @@ def api_cron_frequency():
 @login_required
 def api_status():
     _use_paper_db()
-    position = state_store.get_position_state()
+    positions = state_store.get_open_positions()
+    # Dashboard hiện chỉ hiển thị 1 card vị thế (MAX_CONCURRENT_POSITIONS mặc định
+    # 1) — giữ "position" trả về vị thế đầu tiên (hoặc dict rỗng status WAIT) để
+    # không phá UI hiện tại; "positions" là danh sách đầy đủ cho khi UI cần hiển
+    # thị nhiều vị thế cùng lúc.
+    position = positions[0] if positions else {
+        "status": "WAIT", "trade_id": None, "symbol": None, "entry_price": None,
+        "entry_time": None, "entry_score": None, "stop_price": None,
+        "take_profit_price": None, "size_usd": None,
+    }
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     with state_store.get_conn() as conn:
         row = conn.execute(
@@ -321,14 +341,16 @@ def api_status():
         ).fetchone()
 
     latest_tick = None
-    if position["status"] == "IN_POSITION":
-        ticks = state_store.get_events(event_type="MARKET_TICK", limit=10000)
-        if ticks:
-            payload = ticks[-1]["payload"]
-            latest_tick = {"ts": ticks[-1]["ts"], "price": payload.get("price"), "total_score": payload.get("total_score")}
+    if positions:
+        tick = state_store.get_latest_event("MARKET_TICK")
+        if tick:
+            payload = tick["payload"]
+            latest_tick = {"ts": tick["ts"], "price": payload.get("price"), "total_score": payload.get("total_score")}
 
     return jsonify({
         "position": position,
+        "positions": positions,
+        "max_concurrent_positions": bot_config.MAX_CONCURRENT_POSITIONS,
         "latest_tick": latest_tick,
         "monitoring": state_store.get_run_lock_status(),
         "kill_switch_on": state_store.is_kill_switch_on(),
@@ -340,7 +362,7 @@ def api_status():
             "last_run_at": health_row[0] if health_row else None,
             "last_run_ok": bool(health_row[1]) if health_row else None,
         },
-        "cron": _cron_status(),
+        "runtime": _runtime_status(),
     })
 
 
@@ -361,11 +383,11 @@ def api_kill_switch():
 @login_required
 def api_logs():
     n = min(int(request.args.get("lines", 200)), 2000)
-    if not CRON_LOG_PATH.exists():
-        return jsonify({"lines": [], "path": str(CRON_LOG_PATH)})
-    text = CRON_LOG_PATH.read_text(errors="replace")
+    if not RUNTIME_LOG_PATH.exists():
+        return jsonify({"lines": [], "path": str(RUNTIME_LOG_PATH)})
+    text = RUNTIME_LOG_PATH.read_text(errors="replace")
     lines = text.splitlines()[-n:]
-    return jsonify({"lines": lines, "path": str(CRON_LOG_PATH)})
+    return jsonify({"lines": lines, "path": str(RUNTIME_LOG_PATH)})
 
 
 @app.route("/api/ticks")
@@ -373,21 +395,167 @@ def api_logs():
 def api_ticks():
     _use_paper_db()
     limit = min(int(request.args.get("limit", 50)), 500)
-    events = state_store.get_events(event_type="MARKET_TICK", limit=10000)
-    return jsonify({"ticks": events[-limit:][::-1]})
+    return jsonify({"ticks": state_store.get_recent_events("MARKET_TICK", limit=limit)})
+
+
+def _parse_history_time(value: str | None, fallback: datetime) -> datetime:
+    if not value:
+        return fallback
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise ValueError("Thời gian phải theo định dạng ISO-8601") from exc
+    if parsed.tzinfo is None:
+        raise ValueError("Thời gian phải có timezone")
+    return parsed.astimezone(timezone.utc)
+
+
+def _downsample_score_points(points: list[dict], max_points: int) -> list[dict]:
+    """Giảm mẫu nhưng giữ min/max score của từng bucket để không mất spike."""
+    if len(points) <= max_points:
+        return points
+    bucket_count = max(1, max_points // 2)
+    bucket_size = math.ceil(len(points) / bucket_count)
+    sampled = []
+    for start in range(0, len(points), bucket_size):
+        bucket = points[start:start + bucket_size]
+        score_min = min(range(len(bucket)), key=lambda i: bucket[i]["score"])
+        score_max = max(range(len(bucket)), key=lambda i: bucket[i]["score"])
+        for index in sorted({score_min, score_max}):
+            sampled.append(bucket[index])
+    return sampled
+
+
+def _load_backtest_timeline() -> tuple[list[dict], dict]:
+    if not BACKTEST_30D_PATH.exists():
+        raise FileNotFoundError("Chưa có artifact backtest 30 ngày")
+    mtime_ns = BACKTEST_30D_PATH.stat().st_mtime_ns
+    if _BACKTEST_CACHE["mtime_ns"] != mtime_ns:
+        result = json.loads(BACKTEST_30D_PATH.read_text(encoding="utf-8"))
+        _BACKTEST_CACHE["mtime_ns"] = mtime_ns
+        _BACKTEST_CACHE["data"] = result
+    result = _BACKTEST_CACHE["data"]
+    return result.get("score_timeline") or [], result
+
+
+def _timeline_point_time(point: dict) -> datetime:
+    parsed = datetime.fromisoformat(point["ts"].replace("Z", "+00:00"))
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+@app.route("/api/score-history")
+@login_required
+def api_score_history():
+    """Timeline MARKET_TICK cho biểu đồ Score/Giá theo ngày và giờ."""
+    now = datetime.now(timezone.utc)
+    try:
+        start = _parse_history_time(request.args.get("from"), now - timedelta(hours=6))
+        end = _parse_history_time(request.args.get("to"), now)
+        max_points = min(max(int(request.args.get("max_points", 1600)), 250), 4000)
+    except (TypeError, ValueError) as exc:
+        return jsonify({"error": str(exc)}), 400
+    if end <= start:
+        return jsonify({"error": "Mốc Đến phải sau mốc Từ"}), 400
+    if end - start > timedelta(days=31):
+        return jsonify({"error": "Khoảng xem tối đa là 31 ngày"}), 400
+
+    source = request.args.get("source", "paper")
+    backtest_result = None
+    if source == "backtest_30d":
+        try:
+            timeline, backtest_result = _load_backtest_timeline()
+        except (FileNotFoundError, json.JSONDecodeError) as exc:
+            return jsonify({"error": str(exc)}), 404
+        points = [point for point in timeline if start <= _timeline_point_time(point) <= end]
+    elif source == "paper":
+        _use_paper_db()
+        events = state_store.get_events_in_range(
+            "MARKET_TICK", start.isoformat(), end.isoformat()
+        )
+        points = []
+        for event in events:
+            payload = event["payload"]
+            monitor = payload.get("sr_monitor") or {}
+            try:
+                price = float(payload["price"])
+                score = float(payload["total_score"])
+            except (KeyError, TypeError, ValueError):
+                continue
+            points.append({
+                "ts": event["ts"],
+                "price": price,
+                "score": score,
+                "action": payload.get("action"),
+                "reason": payload.get("reason"),
+                "score_side": payload.get("score_side"),
+                "support_status": monitor.get("support_status"),
+                "resistance_status": monitor.get("resistance_status"),
+                "buy_eligible": monitor.get("buy_eligible"),
+            })
+    else:
+        return jsonify({"error": "Nguồn dữ liệu không hợp lệ"}), 400
+
+    scores = [point["score"] for point in points]
+    sampled = _downsample_score_points(points, max_points)
+    cfg = _read_config()
+    sr_only = cfg.get("SCORING_PROFILE") == "support_resistance_only"
+    buy_key = "SR_DECISION_THRESHOLD" if sr_only else "BUY_SCORE_THRESHOLD"
+    backtest_threshold = ((backtest_result or {}).get("manifest") or {}).get("sr", {}).get("decision_threshold")
+    return jsonify({
+        "source": source,
+        "from": start.isoformat(),
+        "to": end.isoformat(),
+        "points": sampled,
+        "thresholds": {
+            "buy": float(backtest_threshold or cfg.get(buy_key, 70)),
+            "watch": float(cfg.get("WATCH_SCORE_THRESHOLD", 55)),
+        },
+        "summary": {
+            "raw_points": len(points),
+            "returned_points": len(sampled),
+            "min_score": min(scores) if scores else None,
+            "max_score": max(scores) if scores else None,
+            "avg_score": (sum(scores) / len(scores)) if scores else None,
+        },
+    })
 
 
 @app.route("/api/score-detail")
 @login_required
 def api_score_detail():
-    """Chi tiết 'tính score như nào' của lần cron gần nhất (`SCORE_COMPUTED`,
+    """Chi tiết 'tính score như nào' của cycle gần nhất (`SCORE_COMPUTED`,
     xem run.py) — mỗi thành phần góp vào total_score + breakdown Technical."""
     _use_paper_db()
-    events = state_store.get_events(event_type="SCORE_COMPUTED", limit=10000)
-    if not events:
+    latest = state_store.get_latest_event("SCORE_COMPUTED")
+    if not latest:
         return jsonify({"available": False})
-    latest = events[-1]
     return jsonify({"available": True, "ts": latest["ts"], **latest["payload"]})
+
+
+@app.route("/api/support-resistance")
+@login_required
+def api_support_resistance():
+    _use_paper_db()
+    latest = state_store.get_latest_event("MARKET_TICK")
+    if not latest:
+        return jsonify({"available": False})
+    payload = latest["payload"]
+    score_event = state_store.get_latest_event("SCORE_COMPUTED")
+    return jsonify({
+        "available": True,
+        "ts": latest["ts"],
+        "price": payload.get("price"),
+        "action": payload.get("action"),
+        "total_score": payload.get("total_score"),
+        "score_side": payload.get("score_side"),
+        "monitor": payload.get("sr_monitor"),
+        "diagnostics": (
+            score_event["payload"].get("support_resistance_diagnostics")
+            if score_event else None
+        ),
+    })
 
 
 # --------------------------------------------------------------------- trades
@@ -395,6 +563,39 @@ def api_score_detail():
 @app.route("/api/trades")
 @login_required
 def api_trades():
+    source = request.args.get("source", "paper")
+    if source == "backtest_30d":
+        try:
+            _timeline, result = _load_backtest_timeline()
+        except (FileNotFoundError, json.JSONDecodeError) as exc:
+            return jsonify({"error": str(exc)}), 404
+        trades = [{
+            "status": "CLOSED",
+            "entry_time": trade.get("entry_time"),
+            "entry_price": trade.get("entry_price"),
+            "entry_score": trade.get("entry_score"),
+            "exit_time": trade.get("exit_time"),
+            "exit_price": trade.get("exit_price"),
+            "pnl_pct": trade.get("net_pnl_pct"),
+            "pnl_usd": (trade.get("accounting") or {}).get("net_pnl_usd"),
+            "equity_before_usd": (trade.get("accounting") or {}).get("equity_before_usd"),
+            "equity_after_usd": (trade.get("accounting") or {}).get("equity_after_usd"),
+            "exit_reason": trade.get("reason"),
+            "stop_price": trade.get("stop_price"),
+            "take_profit_price": trade.get("take_profit_price"),
+            "tp_reason": trade.get("tp_reason"),
+        } for trade in reversed(result.get("trades") or [])]
+        return jsonify({
+            "source": source,
+            "trades": trades,
+            "n_total": len(trades),
+            "n_open": 0,
+            "n_closed": len(trades),
+            "stats": result.get("net") or {},
+        })
+    if source != "paper":
+        return jsonify({"error": "Nguồn dữ liệu không hợp lệ"}), 400
+
     _use_paper_db()
     entry_events = state_store.get_events(event_type="ENTRY", limit=10000)
     trade_ids = [e["trade_id"] for e in entry_events if e["trade_id"]]
@@ -407,6 +608,7 @@ def api_trades():
     stats = compute_stats(pnl_pcts, init_cash=100.0)
 
     return jsonify({
+        "source": source,
         "trades": summaries,
         "n_total": len(summaries),
         "n_open": len(summaries) - len(closed),

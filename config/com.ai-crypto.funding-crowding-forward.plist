@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.ai-crypto.funding-crowding-forward</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>/Users/administrator/Library/Application Support/ai-crypto-funding-forward/scripts/run_funding_crowding_forward_paper.sh</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>/Users/administrator/Library/Application Support/ai-crypto-funding-forward</string>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Minute</key>
+    <integer>5</integer>
+  </dict>
+  <key>ProcessType</key>
+  <string>Background</string>
+  <key>StandardOutPath</key>
+  <string>/Users/administrator/Library/Application Support/ai-crypto-funding-forward/logs/funding_crowding_forward.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/administrator/Library/Application Support/ai-crypto-funding-forward/logs/funding_crowding_forward.error.log</string>
+</dict>
+</plist>

@@ -164,11 +164,15 @@
   .row-pair .card { flex: 1; min-width: 0; }
   .row-pair .card:nth-child(2) { overflow: hidden; }
   .row-pair .card:nth-child(2) .tick-box { flex: 1; min-height: 0; }
+  .sr-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+  .sr-zone { border: 1px solid var(--border); border-radius: 8px; padding: 12px; background: #0D120E; }
+  .sr-zone h3 { margin: 0 0 8px; color: var(--secondary); font-size: 13px; text-transform: uppercase; }
 
   @media (max-width: 1024px) {
     .wrap { width: 92%; }
     .col-3, .col-4, .col-5, .col-6, .col-7, .col-8 { grid-column: span 12; }
     .row-pair { flex-direction: column; }
+    .sr-grid { grid-template-columns: 1fr; }
   }
 
   .stat-row { display: flex; justify-content: space-between; padding: 7px 0; font-size: 13.5px; border-bottom: 1px solid var(--border); }
@@ -227,12 +231,23 @@
   .pill.HOLD { background: rgba(76,140,88,.2); color: var(--text-muted); }
   .pill.WATCH { background: rgba(0,229,255,.15); color: var(--cta); }
   .pill.IGNORE { background: rgba(76,140,88,.12); color: var(--text-muted); }
+  .pill.WIN { background: rgba(94,255,143,.18); color: var(--green); box-shadow: var(--glow); }
+  .pill.LOSE { background: rgba(255,107,107,.18); color: var(--red); box-shadow: var(--glow-red); }
+  .pill.OPEN { background: rgba(125,216,245,.15); color: var(--cta); }
+  .pill.EVEN { background: rgba(95,122,104,.18); color: var(--text-muted); }
 
   .save-msg { font-size: 12.5px; margin-top: 8px; min-height: 18px; }
   .save-msg.ok { color: var(--green); }
   .save-msg.err { color: var(--red); }
 
   .chart-wrap { height: 260px; }
+  .score-history-controls {
+    display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap;
+    margin-bottom: 12px;
+  }
+  .score-history-controls .field { margin: 0; min-width: 210px; }
+  .score-history-presets { display: flex; gap: 6px; flex-wrap: wrap; }
+  .score-history-chart-wrap { height: 360px; }
 
   ::-webkit-scrollbar { width: 8px; height: 8px; }
   ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
@@ -269,22 +284,49 @@
 
     <div class="grid">
 
-      <!-- Trạng thái + Cron (merged) -->
+      <section class="card col-12">
+        <h2>
+          <span>Diễn biến Score &amp; Giá</span>
+          <span class="hint" id="score-history-summary">—</span>
+        </h2>
+        <div class="score-history-controls">
+          <div class="field" style="min-width:190px">
+            <label for="score-history-source">Nguồn dữ liệu</label>
+            <select id="score-history-source">
+              <option value="paper">Paper live</option>
+              <option value="backtest_30d">Backtest 30 ngày</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="score-history-from">Từ ngày / giờ</label>
+            <input type="datetime-local" id="score-history-from">
+          </div>
+          <div class="field">
+            <label for="score-history-to">Đến ngày / giờ</label>
+            <input type="datetime-local" id="score-history-to">
+          </div>
+          <div class="score-history-presets" aria-label="Khoảng thời gian nhanh">
+            <button class="btn small" data-score-hours="1">1 giờ</button>
+            <button class="btn small" data-score-hours="6">6 giờ</button>
+            <button class="btn small" data-score-hours="24">24 giờ</button>
+            <button class="btn small" data-score-hours="168">7 ngày</button>
+            <button class="btn small" data-score-hours="720">30 ngày</button>
+          </div>
+          <button class="btn cta" id="score-history-load">Áp dụng</button>
+        </div>
+        <div class="save-msg" id="score-history-msg"></div>
+        <div class="chart-wrap score-history-chart-wrap"><canvas id="score-history-chart"></canvas></div>
+      </section>
+
+      <!-- Trạng thái + runtime daemon -->
       <section class="card col-4">
         <h2>
-          <span>Trạng thái &amp; Cron</span>
-          <span class="live-badge"><span class="live-dot"></span>LIVE</span>
+          <span>Trạng thái &amp; Runtime</span>
+          <span class="live-badge" id="runtime-live-badge"><span class="live-dot"></span>SCHEDULED</span>
         </h2>
         <div id="status-body"><div class="table-empty">Đang tải...</div></div>
 
         <div style="margin-top:14px; padding-top:12px; border-top:1px solid var(--border);">
-          <div class="toggle-row">
-            <span>Bật/tắt cron</span>
-            <label class="switch">
-              <input type="checkbox" id="cron-toggle">
-              <span class="slider"></span>
-            </label>
-          </div>
           <div class="toggle-row">
             <span>Kill Switch (tạm dừng vào lệnh)</span>
             <label class="switch">
@@ -293,25 +335,27 @@
             </label>
           </div>
           <div class="save-msg" id="kill-switch-msg"></div>
+          <div class="stat-row" style="margin-top:8px"><span class="label">Chế độ</span><span class="value mono" id="runtime-mode">—</span></div>
+          <div class="stat-row"><span class="label">Service</span><span class="value mono" id="runtime-service">—</span></div>
           <div class="field" style="margin-top:12px">
-            <label for="cron-minutes">Tần suất (phút)</label>
-            <div style="display:flex; gap:8px;">
-              <input type="number" id="cron-minutes" min="1" max="1440" step="1" style="flex:1">
-              <button class="btn small" id="cron-save-btn">Lưu</button>
-            </div>
+            <label for="cfg-activation">Kích hoạt mỗi (phút)</label>
+            <input type="number" min="1" max="10080" step="1" id="cfg-activation">
           </div>
-          <div class="save-msg" id="cron-msg"></div>
-          <div class="stat-row" style="margin-top:8px">
-            <span class="label">Lần chạy tiếp theo</span>
-            <span class="value mono" id="next-run-countdown">—</span>
+          <div class="field" style="margin-top:12px">
+            <label for="cfg-window">Monitor window (phút)</label>
+            <input type="number" min="0.5" step="0.5" id="cfg-window">
           </div>
-          <button class="btn cta" id="run-now-btn" style="width:100%; margin-top:10px">Chạy ngay</button>
-          <div class="save-msg" id="run-now-msg"></div>
+          <div class="field" style="margin-top:10px">
+            <label for="cfg-poll">Tần suất poll (giây)</label>
+            <input type="number" min="1" step="1" id="cfg-poll">
+          </div>
+          <button class="btn small" id="runtime-settings-save-btn" style="width:100%; margin-top:10px">Lưu Runtime</button>
+          <div class="save-msg" id="runtime-settings-msg"></div>
         </div>
       </section>
 
       <!-- Score breakdown + Live tick feed: cặp đôi tự khớp chiều cao với nhau
-           (Tick theo Score), độc lập với card Cron bên cạnh -->
+           (Tick theo Score), độc lập với card Runtime bên cạnh -->
       <div class="col-8 row-pair">
         <section class="card">
           <h2>
@@ -330,11 +374,36 @@
         </section>
       </div>
 
+      <!-- Trade history dùng cùng nguồn với timeline -->
+      <section class="card col-12">
+        <h2><span>Lịch sử lệnh BUY/SELL</span></h2>
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Kết quả</th><th>Vào lệnh</th><th>Giá vào</th>
+                <th>Thoát lệnh</th><th>Giá ra</th><th>PnL %</th><th>PnL USD</th><th>Lý do thoát</th>
+              </tr>
+            </thead>
+            <tbody id="trades-tbody"></tbody>
+          </table>
+          <div class="table-empty" id="trades-empty" style="display:none">Chưa có lệnh nào.</div>
+        </div>
+      </section>
+
+      <section class="card col-12">
+        <h2>
+          <span>Support / Resistance hiện tại</span>
+          <span class="h2-right"><span class="live-badge" id="sr-live-badge"><span class="live-dot"></span>LIVE</span><span class="hint" id="sr-ts-hint"></span></span>
+        </h2>
+        <div id="sr-body"><div class="table-empty">Đang tải...</div></div>
+      </section>
+
       <!-- Vị thế đang mở: chỉ hiện khi có lệnh, đứng cùng hàng với Cấu hình
            chiến lược (chia đôi 6+6) — xem toggleOpenPositionLayout() -->
       <section class="card col-6" id="position-card" style="display:none">
         <h2>
-          <span>Vị thế đang mở</span>
+          <span id="position-card-title">Vị thế đang mở</span>
           <span class="live-badge"><span class="live-dot"></span>LIVE</span>
         </h2>
         <div id="position-body"><div class="table-empty">Đang tải...</div></div>
@@ -354,6 +423,13 @@
           <div class="field">
             <label for="cfg-timeframe">Timeframe</label>
             <input type="text" id="cfg-timeframe">
+          </div>
+          <div class="field">
+            <label for="cfg-profile">Scoring profile</label>
+            <select id="cfg-profile">
+              <option value="champion">Champion</option>
+              <option value="support_resistance_only">Support/Resistance only</option>
+            </select>
           </div>
         </div>
         <div class="field-row">
@@ -380,16 +456,6 @@
             <input type="number" step="0.01" id="cfg-pullback">
           </div>
         </div>
-        <div class="field-row">
-          <div class="field">
-            <label for="cfg-window">Monitor window (phút)</label>
-            <input type="number" step="0.5" id="cfg-window">
-          </div>
-          <div class="field">
-            <label for="cfg-poll">Monitor poll (giây)</label>
-            <input type="number" step="1" id="cfg-poll">
-          </div>
-        </div>
         <button class="btn cta" id="config-save-btn">Lưu cấu hình</button>
         <div class="save-msg" id="config-msg"></div>
       </section>
@@ -406,27 +472,10 @@
         <div class="chart-wrap"><canvas id="equity-chart"></canvas></div>
       </section>
 
-      <!-- Trade history -->
-      <section class="card col-12">
-        <h2><span>Lịch sử lệnh BUY/SELL</span></h2>
-        <div class="table-scroll">
-          <table>
-            <thead>
-              <tr>
-                <th>Trạng thái</th><th>Vào lệnh</th><th>Giá vào</th>
-                <th>Thoát lệnh</th><th>Giá ra</th><th>PnL %</th><th>Lý do thoát</th>
-              </tr>
-            </thead>
-            <tbody id="trades-tbody"></tbody>
-          </table>
-          <div class="table-empty" id="trades-empty" style="display:none">Chưa có lệnh nào.</div>
-        </div>
-      </section>
-
       <!-- Log viewer -->
       <section class="card col-12">
         <h2>
-          <span>Log cron</span>
+          <span>Log Rule Engine</span>
           <span class="h2-right"><span class="live-badge"><span class="live-dot"></span>LIVE</span><span class="hint" id="log-path-hint"></span></span>
         </h2>
         <div class="log-box" id="log-box">Đang tải...</div>
@@ -439,6 +488,10 @@
 <script>
 const $ = (id) => document.getElementById(id);
 let equityChart = null;
+let scoreHistoryChart = null;
+let scoreHistoryInitialized = false;
+let scoreHistoryLiveHours = null;
+let scoreHistoryRequestId = 0;
 
 async function api(path, opts) {
   const res = await fetch(path, Object.assign({ headers: { 'Content-Type': 'application/json' } }, opts));
@@ -493,16 +546,26 @@ function fmtTime(iso) {
   if (!iso) return '—';
   try { return new Date(iso).toLocaleString('vi-VN', { hour12: false }); } catch (e) { return iso; }
 }
+function fmtPrice(v) {
+  if (v === null || v === undefined) return '—';
+  return Number(v).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+}
 
 async function loadStatus() {
   const s = await api('/api/status');
-  $('strategy-label-sub').textContent = `Symbol: ${s.position?.symbol || 'BTC/USDT'} · Cron mỗi ${s.cron.minutes} phút`;
+  const runtime = s.runtime || {};
+  $('strategy-label-sub').textContent = `Symbol: ${s.position?.symbol || 'BTC/USDT'} · Mỗi ${runtime.activation_minutes ?? '—'} phút · chạy ${runtime.refresh_minutes ?? '—'} phút · poll ${runtime.poll_seconds ?? '—'} giây`;
 
+  const positions = s.positions ?? (s.position.status === 'IN_POSITION' ? [s.position] : []);
   const badges = [];
   badges.push(`<span class="badge ${s.monitoring?.active ? 'ok' : 'warn'}"><span class="dot"></span>${s.monitoring?.active ? 'Đang giám sát' : 'Không giám sát'}</span>`);
-  badges.push(`<span class="badge ${s.position.status === 'IN_POSITION' ? 'ok' : ''}"><span class="dot"></span>${s.position.status}</span>`);
+  badges.push(
+    positions.length > 0
+      ? `<span class="badge ok"><span class="dot"></span>${positions.length} lệnh đang mở${s.max_concurrent_positions ? ` / ${s.max_concurrent_positions}` : ''}</span>`
+      : `<span class="badge"><span class="dot"></span>WAIT</span>`
+  );
   if (s.kill_switch_on) badges.push('<span class="badge danger"><span class="dot"></span>Kill switch BẬT</span>');
-  badges.push(`<span class="badge ${s.cron.enabled ? 'ok' : 'warn'}"><span class="dot"></span>Cron ${s.cron.enabled ? 'đang chạy' : 'đã tắt'}</span>`);
+  badges.push(`<span class="badge ${runtime.loaded ? 'ok' : 'warn'}"><span class="dot"></span>Scheduler ${runtime.loaded ? 'đang bật' : 'chưa load'}</span>`);
   if (s.trading_halted_today) badges.push('<span class="badge danger"><span class="dot"></span>Đã chạm daily loss limit</span>');
   $('status-badges').innerHTML = badges.join('');
 
@@ -521,69 +584,55 @@ async function loadStatus() {
     <div class="stat-row"><span class="label">Lần chạy cuối</span><span class="value mono">${fmtTime(s.run_health.last_run_at)}</span></div>`;
   $('status-body').innerHTML = posRows;
 
-  renderPositionCard(p, s.latest_tick);
+  renderPositionCard(positions, s.latest_tick);
   setLiveBadge('score-live-badge', s.monitoring?.active);
   setLiveBadge('tick-live-badge', s.monitoring?.active);
+  setLiveBadge('sr-live-badge', s.monitoring?.active);
+  const runtimeBadge = $('runtime-live-badge');
+  runtimeBadge.innerHTML = `<span class="live-dot"></span>${runtime.loaded ? 'SCHEDULED' : 'OFFLINE'}`;
+  runtimeBadge.classList.toggle('idle', !runtime.loaded);
 
   $('kill-switch-toggle').checked = s.kill_switch_on;
-  $('cron-toggle').checked = s.cron.enabled;
-  $('cron-minutes').value = s.cron.minutes;
-  nextRunAt = s.cron.next_run_at ? new Date(s.cron.next_run_at) : null;
-  updateCountdown();
+  $('runtime-mode').textContent = runtime.mode === 'scheduled_window' ? 'SCHEDULED WINDOW' : (runtime.mode || '—');
+  const serviceState = s.monitoring?.active ? 'monitoring' : (runtime.running ? 'waiting' : (runtime.state || 'unknown'));
+  $('runtime-service').textContent = `${serviceState}${runtime.pid ? ` · PID ${runtime.pid}` : ''}`;
 }
 
-// "Tính score"/"Tick gần đây" chỉ thật sự LIVE khi có run.py đang giữ monitoring
-// lock (đang trong cửa sổ theo dõi liên tục) — cron bật nhưng đợi tới lần trigger
-// kế tiếp thì badge phải báo IDLE, không hiện LIVE giả.
+// "Tính score"/"Tick gần đây" chỉ thật sự LIVE khi run.py đang giữ monitoring lock.
 function setLiveBadge(id, active) {
   const el = $(id);
   el.innerHTML = `<span class="live-dot"></span>${active ? 'LIVE' : 'IDLE'}`;
   el.classList.toggle('idle', !active);
 }
 
-// Card "Vị thế đang mở" chỉ hiện khi có lệnh IN_POSITION, đứng cùng hàng với
-// Cấu hình chiến lược (chia 6+6); không có lệnh thì Cấu hình trở lại full width.
-function renderPositionCard(position, latestTick) {
-  const open = position.status === 'IN_POSITION';
+// Card "Vị thế đang mở" chỉ hiện khi có >= 1 lệnh IN_POSITION, đứng cùng hàng
+// với Cấu hình chiến lược (chia 6+6); không có lệnh thì Cấu hình trở lại full
+// width. Render N block khi có nhiều vị thế song song (MAX_CONCURRENT_POSITIONS
+// > 1) — mỗi block 1 lệnh, tiêu đề phân biệt theo entry_time khi > 1 lệnh.
+function renderPositionCard(positions, latestTick) {
+  const open = positions.length > 0;
   $('position-card').style.display = open ? 'flex' : 'none';
   $('config-card').classList.toggle('col-6', open);
   $('config-card').classList.toggle('col-12', !open);
+  $('position-card-title').textContent = positions.length > 1 ? `Vị thế đang mở (${positions.length})` : 'Vị thế đang mở';
   if (!open) return;
 
-  const entryPrice = position.entry_price;
   const currentPrice = latestTick?.price ?? null;
-  const pnlPct = (entryPrice && currentPrice) ? (currentPrice - entryPrice) / entryPrice * 100 : null;
-  const pnlUsd = (position.size_usd && pnlPct !== null) ? position.size_usd * pnlPct / 100 : null;
-
-  $('position-body').innerHTML = `
-    <div class="stat-row"><span class="label">Giá vào lệnh</span><span class="value mono">${entryPrice ?? '—'}</span></div>
-    <div class="stat-row"><span class="label">Score lúc vào</span><span class="value mono">${position.entry_score ?? '—'}</span></div>
-    <div class="stat-row"><span class="label">Giá hiện tại</span><span class="value mono">${currentPrice ?? '—'}</span></div>
-    <div class="stat-row"><span class="label">Volume lệnh</span><span class="value mono">${fmtMoney(position.size_usd)}</span></div>
-    <div class="stat-row"><span class="label">Lãi/Lỗ tạm tính</span><span class="value mono ${pctClass(pnlPct)}">${fmtPct(pnlPct)} · ${fmtMoneySigned(pnlUsd)}</span></div>`;
+  $('position-body').innerHTML = positions.map((position, i) => {
+    const entryPrice = position.entry_price;
+    const pnlPct = (entryPrice && currentPrice) ? (currentPrice - entryPrice) / entryPrice * 100 : null;
+    const pnlUsd = (position.size_usd && pnlPct !== null) ? position.size_usd * pnlPct / 100 : null;
+    const header = positions.length > 1
+      ? `<div class="stat-row"><span class="label"><strong>Lệnh #${i + 1}</strong></span><span class="value mono">${fmtTime(position.entry_time)}</span></div>`
+      : '';
+    return `${header}
+      <div class="stat-row"><span class="label">Giá vào lệnh</span><span class="value mono">${entryPrice ?? '—'}</span></div>
+      <div class="stat-row"><span class="label">Score lúc vào</span><span class="value mono">${position.entry_score ?? '—'}</span></div>
+      <div class="stat-row"><span class="label">Giá hiện tại</span><span class="value mono">${currentPrice ?? '—'}</span></div>
+      <div class="stat-row"><span class="label">Volume lệnh</span><span class="value mono">${fmtMoney(position.size_usd)}</span></div>
+      <div class="stat-row"><span class="label">Lãi/Lỗ tạm tính</span><span class="value mono ${pctClass(pnlPct)}">${fmtPct(pnlPct)} · ${fmtMoneySigned(pnlUsd)}</span></div>`;
+  }).join('<div style="height:8px"></div>');
 }
-
-let nextRunAt = null;
-function updateCountdown() {
-  const el = $('next-run-countdown');
-  if (!nextRunAt) { el.textContent = 'Cron đang tắt'; return; }
-  const diffMs = nextRunAt.getTime() - Date.now();
-  if (diffMs <= 0) { el.textContent = 'Đang trigger...'; return; }
-  const totalSec = Math.floor(diffMs / 1000);
-  const m = Math.floor(totalSec / 60);
-  const sec = totalSec % 60;
-  el.textContent = `${m} phút ${String(sec).padStart(2, '0')} giây`;
-}
-setInterval(updateCountdown, 1000);
-
-$('run-now-btn').addEventListener('click', async () => {
-  $('run-now-btn').disabled = true;
-  const res = await api('/api/run-now', { method: 'POST' });
-  $('run-now-msg').textContent = res.ok ? res.message : 'Lỗi khi trigger.';
-  $('run-now-msg').className = 'save-msg ' + (res.ok ? 'ok' : 'err');
-  setTimeout(() => { $('run-now-btn').disabled = false; }, 5000);
-  setTimeout(() => { loadLogs(); loadTicks(); }, 3000);
-});
 
 $('kill-switch-toggle').addEventListener('change', async (e) => {
   const on = e.target.checked;
@@ -593,28 +642,34 @@ $('kill-switch-toggle').addEventListener('change', async (e) => {
   loadStatus();
 });
 
-$('cron-toggle').addEventListener('change', async (e) => {
-  await api('/api/cron/toggle', { method: 'POST', body: JSON.stringify({ enabled: e.target.checked }) });
-  loadStatus();
-});
-$('cron-save-btn').addEventListener('click', async () => {
-  const minutes = parseInt($('cron-minutes').value, 10);
-  const res = await api('/api/cron/frequency', { method: 'POST', body: JSON.stringify({ minutes }) });
-  $('cron-msg').textContent = res.error ? res.error : `Đã lưu — chạy mỗi ${res.minutes} phút.`;
-  $('cron-msg').className = 'save-msg ' + (res.error ? 'err' : 'ok');
-  loadStatus();
+$('runtime-settings-save-btn').addEventListener('click', async () => {
+  const res = await api('/api/runtime/config', {
+    method: 'POST', body: JSON.stringify({
+      activation_minutes: $('cfg-activation').value,
+      window_minutes: $('cfg-window').value,
+      poll_seconds: $('cfg-poll').value,
+    }),
+  });
+  const ok = Boolean(res.ok);
+  $('runtime-settings-msg').textContent = ok
+    ? 'Đã lưu và áp dụng scheduler.'
+    : `Lỗi: ${res.error || JSON.stringify(res.errors || {})}`;
+  $('runtime-settings-msg').className = 'save-msg ' + (ok ? 'ok' : 'err');
+  if (ok) loadStatus();
 });
 
 async function loadConfig() {
   const data = await api('/api/config');
   const c = data.values;
   $('cfg-exchange').value = c.EXCHANGE_ID || 'okx';
+  $('cfg-profile').value = c.SCORING_PROFILE || 'champion';
   $('cfg-timeframe').value = c.TIMEFRAME || '';
   $('cfg-mtf').value = c.MTF_TIMEFRAMES || '';
   $('cfg-buy').value = c.BUY_SCORE_THRESHOLD || '';
   $('cfg-watch').value = c.WATCH_SCORE_THRESHOLD || '';
   $('cfg-pullback').value = c.PULLBACK_ATR_BUFFER || '';
   $('cfg-label').value = c.STRATEGY_LABEL || '';
+  $('cfg-activation').value = c.ACTIVATION_INTERVAL_MINUTES || '';
   $('cfg-window').value = c.MONITOR_WINDOW_MINUTES || '';
   $('cfg-poll').value = c.MONITOR_POLL_SECONDS || '';
 }
@@ -622,29 +677,34 @@ async function loadConfig() {
 $('config-save-btn').addEventListener('click', async () => {
   const payload = {
     EXCHANGE_ID: $('cfg-exchange').value,
+    SCORING_PROFILE: $('cfg-profile').value,
     TIMEFRAME: $('cfg-timeframe').value.trim(),
     MTF_TIMEFRAMES: $('cfg-mtf').value.trim(),
     BUY_SCORE_THRESHOLD: $('cfg-buy').value,
     WATCH_SCORE_THRESHOLD: $('cfg-watch').value,
     PULLBACK_ATR_BUFFER: $('cfg-pullback').value,
     STRATEGY_LABEL: $('cfg-label').value.trim(),
-    MONITOR_WINDOW_MINUTES: $('cfg-window').value,
-    MONITOR_POLL_SECONDS: $('cfg-poll').value,
   };
   const res = await api('/api/config', { method: 'POST', body: JSON.stringify(payload) });
-  $('config-msg').textContent = res.ok ? 'Đã lưu — áp dụng từ lần chạy cron kế tiếp.' : ('Lỗi: ' + JSON.stringify(res.errors || {}));
+  $('config-msg').textContent = res.ok ? 'Đã lưu vào SSOT — cần restart Rule Engine và collector để áp dụng.' : ('Lỗi: ' + JSON.stringify(res.errors || {}));
   $('config-msg').className = 'save-msg ' + (res.ok ? 'ok' : 'err');
 });
 
 async function loadTrades() {
-  const data = await api('/api/trades');
-  $('trades-count-hint').textContent = `${data.n_closed} đã đóng · ${data.n_open} đang mở`;
+  const source = $('score-history-source').value;
+  const data = await api(`/api/trades?source=${encodeURIComponent(source)}`);
+  if (data.error) {
+    $('trades-count-hint').textContent = data.error;
+    return;
+  }
+  const sourceLabel = source === 'backtest_30d' ? 'Backtest 30 ngày' : 'Paper live';
+  $('trades-count-hint').textContent = `${sourceLabel} · ${data.n_closed} đã đóng · ${data.n_open} đang mở`;
 
   const stats = data.stats;
   const hasData = data.n_closed > 0;
   $('stats-body').innerHTML = hasData ? `
     <div class="stat-row"><span class="label">Win rate</span><span class="value">${stats.win_rate_pct ?? '—'}%</span></div>
-    <div class="stat-row"><span class="label">Total return (cộng dồn %)</span><span class="value ${pctClass(stats.total_return_pct)}">${fmtPct(stats.total_return_pct)}</span></div>
+    <div class="stat-row"><span class="label">Total return</span><span class="value ${pctClass(stats.total_return_pct)}">${fmtPct(stats.total_return_pct)}</span></div>
     <div class="stat-row"><span class="label">Max drawdown</span><span class="value">${fmtPct(stats.max_drawdown_pct)}</span></div>
     <div class="stat-row"><span class="label">Sharpe (per-trade, xấp xỉ)</span><span class="value">${stats.sharpe_ratio ?? '—'}</span></div>
   ` : '<div class="table-empty">Chưa có lệnh đóng — chưa đủ dữ liệu.</div>';
@@ -654,13 +714,16 @@ async function loadTrades() {
   $('trades-empty').style.display = data.trades.length ? 'none' : 'block';
   for (const t of data.trades) {
     const tr = document.createElement('tr');
+    const resultValue = t.pnl_usd ?? t.pnl_pct;
+    const outcome = t.status === 'OPEN' ? 'OPEN' : (resultValue > 0 ? 'WIN' : (resultValue < 0 ? 'LOSE' : 'EVEN'));
     tr.innerHTML = `
-      <td><span class="pill ${t.status === 'OPEN' ? 'BUY' : 'SELL'}">${t.status}</span></td>
+      <td><span class="pill ${outcome}">${outcome}</span></td>
       <td class="mono">${fmtTime(t.entry_time)}</td>
       <td class="mono">${t.entry_price ?? '—'}</td>
       <td class="mono">${fmtTime(t.exit_time)}</td>
       <td class="mono">${t.exit_price ?? '—'}</td>
       <td class="mono ${pctClass(t.pnl_pct)}">${t.pnl_pct !== undefined && t.pnl_pct !== null ? fmtPct(t.pnl_pct) : '—'}</td>
+      <td class="mono ${pctClass(t.pnl_usd)}">${t.pnl_usd !== undefined && t.pnl_usd !== null ? fmtMoneySigned(t.pnl_usd) : '—'}</td>
       <td>${t.exit_reason || '—'}</td>`;
     tbody.appendChild(tr);
   }
@@ -668,7 +731,13 @@ async function loadTrades() {
   const closed = data.trades.filter(t => t.status === 'CLOSED' && t.pnl_pct !== null && t.pnl_pct !== undefined).reverse();
   let equity = 100;
   const points = [{ x: 0, y: equity }];
-  closed.forEach((t, i) => { equity *= (1 + t.pnl_pct / 100); points.push({ x: i + 1, y: equity }); });
+  const backtestInitialEquity = closed[0]?.equity_before_usd;
+  closed.forEach((t, i) => {
+    equity = source === 'backtest_30d' && backtestInitialEquity && t.equity_after_usd != null
+      ? 100 * t.equity_after_usd / backtestInitialEquity
+      : equity * (1 + t.pnl_pct / 100);
+    points.push({ x: i + 1, y: equity });
+  });
 
   const ctx = document.getElementById('equity-chart');
   const chartData = {
@@ -754,6 +823,264 @@ async function loadScoreDetail() {
   syncRowPairHeights();
 }
 
+function srZoneHtml(title, zone) {
+  if (!zone?.available) {
+    return `<div class="sr-zone"><h3>${title}</h3><div class="table-empty">Chưa có zone hợp lệ</div></div>`;
+  }
+  const relationMap = { ABOVE: 'Giá ở trên zone', BELOW: 'Giá ở dưới zone', INSIDE: 'Giá đang trong zone' };
+  const swings = (zone.swing_prices || []).map((p, i) =>
+    `${fmtPrice(p)}${zone.swing_times?.[i] ? ` (${fmtTime(zone.swing_times[i])})` : ''}`
+  ).join('<br>') || '—';
+  return `<div class="sr-zone">
+    <h3>${title}</h3>
+    <div class="stat-row"><span class="label">Zone</span><span class="value mono">${fmtPrice(zone.low)} – ${fmtPrice(zone.high)}</span></div>
+    <div class="stat-row"><span class="label">Vị trí giá</span><span class="value">${relationMap[zone.relation] || zone.relation}</span></div>
+    <div class="stat-row"><span class="label">Khoảng cách</span><span class="value mono">${fmtPrice(zone.distance_usd)} USD · ${zone.distance_atr ?? '—'} ATR</span></div>
+    <div class="stat-row"><span class="label">Độ rộng zone</span><span class="value mono">${fmtPrice(zone.width_usd)} USD</span></div>
+    <div class="stat-row"><span class="label">Số touch</span><span class="value mono">${zone.touch_count ?? '—'}</span></div>
+    <div class="stat-row"><span class="label">ATR lúc tạo zone</span><span class="value mono">${fmtPrice(zone.atr_formation)}</span></div>
+    <div class="stat-row"><span class="label">Các swing</span><span class="value mono" style="text-align:right">${swings}</span></div>
+  </div>`;
+}
+
+function srDiagnosticsHtml(title, diag) {
+  if (!diag) return '';
+  const summaryMap = {
+    ACTIVE_ZONE: 'Đã có active zone',
+    NO_CONFIRMED_SWING: 'Chưa có confirmed swing',
+    CLOSEST_SAME_ZONE_WAS_BROKEN: 'Có cặp cùng vùng nhưng support/resistance đã bị phá',
+    NO_PAIR_WITHIN_SPREAD: 'Không có cặp swing nào nằm trong biên ATR cho phép',
+    NO_ELIGIBLE_ZONE: 'Không có zone đủ điều kiện',
+  };
+  const summary = summaryMap[diag.summary] || diag.summary || '—';
+  const swings = (diag.confirmed_swings || []).map(s =>
+    `<div class="stat-row"><span class="label">#${s.idx} · ${fmtTime(s.ts)}</span><span class="value mono">${fmtPrice(s.price)} · ATR ${fmtPrice(s.atr)}</span></div>`
+  ).join('') || '<div class="table-empty">Không có confirmed swing.</div>';
+  const pairs = (diag.pairs_shown || []).map(pair => {
+    const reasonMap = { NOT_INDEPENDENT: 'chưa độc lập', TOO_WIDE: 'quá rộng', BROKEN: 'đã bị phá' };
+    const status = pair.eligible ? 'HỢP LỆ' : pair.reasons.map(r => reasonMap[r] || r).join(', ');
+    return `<div class="sr-zone" style="margin-top:8px">
+      <div class="stat-row"><span class="label">Cặp swing</span><span class="value mono">${fmtPrice(pair.first.price)} / ${fmtPrice(pair.second.price)}</span></div>
+      <div class="stat-row"><span class="label">Spread / cho phép</span><span class="value mono">${fmtPrice(pair.spread_usd)} / ${fmtPrice(pair.allowed_spread_usd)} USD</span></div>
+      <div class="stat-row"><span class="label">Invalidation</span><span class="value mono">${fmtPrice(pair.invalidation_level)}</span></div>
+      <div class="stat-row"><span class="label">Extreme close sau swing đầu</span><span class="value mono">${fmtPrice(pair.extreme_close_after_first)}</span></div>
+      <div class="stat-row"><span class="label">Kết quả</span><span class="value ${pair.eligible ? 'pos' : 'neg'}">${status}</span></div>
+    </div>`;
+  }).join('') || '<div class="table-empty">Chưa có cặp swing để đánh giá.</div>';
+  return `<div class="sr-zone" style="margin-top:14px">
+    <h3>${title} diagnostics</h3>
+    <div class="stat-row"><span class="label">Kết luận</span><span class="value">${summary}</span></div>
+    <div class="stat-row"><span class="label">Confirmed swings</span><span class="value mono">${diag.confirmed_swing_count} · cần ${diag.required_swings}</span></div>
+    <div style="margin-top:10px; color:var(--text-muted); font-size:12px">Danh sách swing</div>
+    ${swings}
+    <div style="margin-top:12px; color:var(--text-muted); font-size:12px">Các cặp gần điều kiện nhất (${diag.pairs_shown?.length || 0}/${diag.total_pair_count || 0})</div>
+    ${pairs}
+  </div>`;
+}
+
+async function loadSupportResistance() {
+  const data = await api('/api/support-resistance');
+  const box = $('sr-body');
+  if (!data.available || !data.monitor) {
+    box.innerHTML = '<div class="table-empty">Chưa có dữ liệu S/R.</div>';
+    return;
+  }
+  const m = data.monitor;
+  const diagnostics = data.diagnostics || {};
+  $('sr-ts-hint').textContent = fmtTime(data.ts);
+  const entryZones = (m.entry_supports || []).map((item, i) =>
+    srZoneHtml(`Support tại entry #${i + 1} · breakdown ${item.breakdown_score}`, item.zone)
+  ).join('');
+  box.innerHTML = `
+    <div class="stat-row"><span class="label">Giá hiện tại</span><span class="value mono">${fmtPrice(m.current_price)}</span></div>
+    <div class="stat-row"><span class="label">ATR hiện tại (5m)</span><span class="value mono">${fmtPrice(m.atr_current)}</span></div>
+    <div class="stat-row"><span class="label">Score đang dùng</span><span class="value mono">${m.score_side} · ${m.effective_score}</span></div>
+    <div class="stat-row"><span class="label">BUY / SELL current-zone</span><span class="value mono">${m.buy_score} / ${m.sell_score_current_zone}</span></div>
+    <div class="stat-row"><span class="label">Threshold</span><span class="value mono">${m.threshold}</span></div>
+    <div class="stat-row"><span class="label">Support status</span><span class="value mono">${m.support_status} · ${m.support?.touch_count || 0}/${m.required_swings || 0} swing</span></div>
+    <div class="stat-row"><span class="label">Được phép BUY</span><span class="value ${m.buy_eligible ? 'pos' : 'neg'}">${m.buy_eligible ? 'YES' : `NO · ${m.buy_ineligible_reason || 'UNKNOWN'}`}</span></div>
+    <div class="stat-row"><span class="label">TP swing-high candidates</span><span class="value mono">${(m.resistance_target_prices || []).map(fmtPrice).join(' · ') || '—'}</span></div>
+    <div class="sr-grid" style="margin-top:14px">
+      ${srZoneHtml(m.support_status === 'SINGLE_SWING_CANDIDATE' ? 'Support candidate (1 swing)' : 'Support zone', m.support)}
+      ${srZoneHtml(m.resistance_status === 'SINGLE_SWING_TARGET' ? 'Resistance target (1 swing)' : 'Resistance zone', m.resistance)}
+      ${entryZones}
+    </div>
+    <div class="sr-grid" style="margin-top:14px">
+      ${srDiagnosticsHtml('Support', diagnostics.support)}
+      ${srDiagnosticsHtml('Resistance', diagnostics.resistance)}
+    </div>`;
+  syncRowPairHeights();
+}
+
+function toDatetimeLocalValue(date) {
+  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+  return local.toISOString().slice(0, 16);
+}
+
+function setScoreHistoryRange(hours, shouldLoad = true) {
+  scoreHistoryLiveHours = $('score-history-source').value === 'paper' ? hours : null;
+  const end = new Date();
+  const start = new Date(end.getTime() - hours * 3600000);
+  $('score-history-from').value = toDatetimeLocalValue(start);
+  $('score-history-to').value = toDatetimeLocalValue(end);
+  if (shouldLoad) loadScoreHistory();
+}
+
+function scoreHistoryTooltip(point) {
+  if (!point) return [];
+  const rows = [
+    `Action: ${point.action || '—'}`,
+    `Score side: ${point.score_side || '—'}`,
+    `Support: ${point.support_status || '—'}`,
+    `Resistance: ${point.resistance_status || '—'}`,
+    `BUY eligible: ${point.buy_eligible === true ? 'YES' : (point.buy_eligible === false ? 'NO' : '—')}`,
+  ];
+  if (point.reason) rows.push(`Lý do: ${point.reason}`);
+  return rows;
+}
+
+async function loadScoreHistory() {
+  if (scoreHistoryLiveHours !== null) {
+    const end = new Date();
+    const start = new Date(end.getTime() - scoreHistoryLiveHours * 3600000);
+    $('score-history-from').value = toDatetimeLocalValue(start);
+    $('score-history-to').value = toDatetimeLocalValue(end);
+  }
+  const fromValue = $('score-history-from').value;
+  const toValue = $('score-history-to').value;
+  const msg = $('score-history-msg');
+  if (!fromValue || !toValue) {
+    msg.textContent = 'Chọn đầy đủ mốc Từ và Đến.';
+    msg.className = 'save-msg err';
+    return;
+  }
+  const from = new Date(fromValue);
+  const to = new Date(toValue);
+  if (!Number.isFinite(from.getTime()) || !Number.isFinite(to.getTime()) || to <= from) {
+    msg.textContent = 'Mốc Đến phải sau mốc Từ.';
+    msg.className = 'save-msg err';
+    return;
+  }
+
+  if (!scoreHistoryChart) {
+    msg.textContent = 'Đang tải dữ liệu...';
+    msg.className = 'save-msg';
+  }
+  const requestId = ++scoreHistoryRequestId;
+  const query = new URLSearchParams({
+    from: from.toISOString(), to: to.toISOString(), max_points: '1600',
+    source: $('score-history-source').value,
+  });
+  const data = await api(`/api/score-history?${query}`);
+  if (requestId !== scoreHistoryRequestId) return;
+  if (data.error) {
+    msg.textContent = data.error;
+    msg.className = 'save-msg err';
+    return;
+  }
+
+  const sourcePoints = data.points || [];
+  const chartPoints = [];
+  sourcePoints.forEach((point, index) => {
+    if (index > 0) {
+      const previous = new Date(sourcePoints[index - 1].ts).getTime();
+      const current = new Date(point.ts).getTime();
+      if (current - previous > 20 * 60 * 1000) {
+        chartPoints.push({ gap: true, ts: new Date((previous + current) / 2).toISOString() });
+      }
+    }
+    chartPoints.push(point);
+  });
+  const labels = chartPoints.map(point => fmtTime(point.ts));
+  const scoreData = chartPoints.map(point => point.gap ? null : point.score);
+  const priceData = chartPoints.map(point => point.gap ? null : point.price);
+  const buyThreshold = data.thresholds?.buy ?? 70;
+  const watchThreshold = data.thresholds?.watch ?? 55;
+  const chartData = {
+    labels,
+    datasets: [
+      {
+        label: 'Score', data: scoreData, yAxisID: 'yScore',
+        borderColor: '#5EFF8F', backgroundColor: 'rgba(94,255,143,.10)',
+        fill: true, tension: .18, pointRadius: 0, borderWidth: 2, spanGaps: false,
+      },
+      {
+        label: 'Giá', data: priceData, yAxisID: 'yPrice',
+        borderColor: '#7DD8F5', backgroundColor: 'transparent',
+        tension: .12, pointRadius: 0, borderWidth: 1.5, spanGaps: false,
+      },
+      {
+        label: `BUY ${buyThreshold}`, data: chartPoints.map(() => buyThreshold), yAxisID: 'yScore',
+        borderColor: '#FF6B6B', borderDash: [7, 5], pointRadius: 0, borderWidth: 1, spanGaps: true,
+      },
+      {
+        label: `WATCH ${watchThreshold}`, data: chartPoints.map(() => watchThreshold), yAxisID: 'yScore',
+        borderColor: '#E2C15B', borderDash: [5, 5], pointRadius: 0, borderWidth: 1, spanGaps: true,
+      },
+    ],
+  };
+  const options = {
+    responsive: true, maintainAspectRatio: false, animation: false,
+    interaction: { mode: 'index', intersect: false },
+    plugins: {
+      legend: { labels: { color: '#8FCC9E', usePointStyle: true, pointStyle: 'line' } },
+      tooltip: {
+        callbacks: {
+          afterBody(items) {
+            const index = items[0]?.dataIndex;
+            return scoreHistoryTooltip(chartPoints[index]);
+          },
+        },
+      },
+    },
+    scales: {
+      x: {
+        ticks: { color: '#5F7A68', maxTicksLimit: 12, maxRotation: 0 },
+        grid: { color: '#263029' },
+      },
+      yScore: {
+        type: 'linear', position: 'left', min: 0, max: 100,
+        title: { display: true, text: 'Score', color: '#5EFF8F' },
+        ticks: { color: '#5F7A68' }, grid: { color: '#263029' },
+      },
+      yPrice: {
+        type: 'linear', position: 'right',
+        title: { display: true, text: 'Giá', color: '#7DD8F5' },
+        ticks: { color: '#5F7A68', callback: value => fmtPrice(value) },
+        grid: { drawOnChartArea: false },
+      },
+    },
+  };
+
+  if (scoreHistoryChart) {
+    scoreHistoryChart.data = chartData;
+    scoreHistoryChart.options = options;
+    scoreHistoryChart.update();
+  } else {
+    scoreHistoryChart = new Chart($('score-history-chart'), { type: 'line', data: chartData, options });
+  }
+  const summary = data.summary || {};
+  $('score-history-summary').textContent = sourcePoints.length
+    ? `${summary.raw_points} tick · score ${Number(summary.min_score).toFixed(2)}–${Number(summary.max_score).toFixed(2)} · TB ${Number(summary.avg_score).toFixed(2)}`
+    : 'Không có tick trong khoảng đã chọn';
+  msg.textContent = summary.raw_points > summary.returned_points
+    ? `Đang hiển thị ${summary.returned_points}/${summary.raw_points} điểm; đã giữ cực trị score theo từng khoảng.`
+    : '';
+  msg.className = 'save-msg ok';
+}
+
+$('score-history-load').addEventListener('click', () => {
+  scoreHistoryLiveHours = null;
+  loadScoreHistory();
+});
+$('score-history-source').addEventListener('change', () => {
+  setScoreHistoryRange($('score-history-source').value === 'backtest_30d' ? 720 : 1);
+  loadTrades();
+});
+document.querySelectorAll('[data-score-hours]').forEach(button => {
+  button.addEventListener('click', () => setScoreHistoryRange(Number(button.dataset.scoreHours)));
+});
+
 function syncRowPairHeights() {
   requestAnimationFrame(() => {
     document.querySelectorAll('.row-pair').forEach((pair) => {
@@ -768,13 +1095,20 @@ function syncRowPairHeights() {
 window.addEventListener('resize', syncRowPairHeights);
 
 function loadAll() {
-  loadStatus(); loadConfig(); loadTrades(); loadLogs(); loadTicks(); loadScoreDetail();
+  loadStatus(); loadConfig(); loadTrades(); loadLogs(); loadTicks(); loadScoreDetail(); loadSupportResistance();
+  if (!scoreHistoryInitialized) {
+    scoreHistoryInitialized = true;
+    setScoreHistoryRange(1);
+  }
 }
 
 let pollTimer = null;
 function startPolling() {
   if (pollTimer) clearInterval(pollTimer);
-  pollTimer = setInterval(() => { loadStatus(); loadLogs(); loadTicks(); loadScoreDetail(); }, 10000);
+  pollTimer = setInterval(() => {
+    loadStatus(); loadLogs(); loadTicks(); loadScoreDetail(); loadSupportResistance();
+    if ($('score-history-source').value === 'paper') loadScoreHistory();
+  }, 5000);
   setInterval(() => { loadTrades(); }, 30000);
 }
 
