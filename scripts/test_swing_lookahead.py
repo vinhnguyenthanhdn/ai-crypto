@@ -3,34 +3,36 @@ from src.indicators.technical import find_recent_swing_low, find_recent_swing_hi
 
 
 def test_swing_low_no_lookahead():
-    # Construct a dataframe where low dip occurs at index 7.
-    # With window=3, index 7 requires bars 8, 9, 10 to confirm.
-    lows = [10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 5.0, 10.0, 10.0, 10.0, 10.0]
+    # Non-flat rising baseline with a dip at index 4 (value 5.0) and window=1.
+    # Bar 4 requires right window [bar 5] (lows[5] = 10.0) to confirm.
+    # At decision_idx=4 (forming bar 4) or decision_idx=5 (bar 5 is forming/current decision point),
+    # bar 4 cannot be confirmed yet because bar 5 is forming or unavailable (i + window >= end).
+    lows = [10.0, 11.0, 12.0, 13.0, 5.0, 14.0, 15.0]
     df = pd.DataFrame({"low": lows})
 
-    # When decision_idx = 8 (bar 8), right window (8, 9, 10) is incomplete because bar 10 > decision_idx 8.
-    res_at_8 = find_recent_swing_low(df, idx=8, window=3, lookback=10)
-    assert res_at_8 is None, f"Expected None at decision_idx=8, got {res_at_8}"
+    # At decision_idx = 5, candidate i = 4 gives i + window = 5 >= end (5), so bar 4 is not confirmed.
+    res_at_5 = find_recent_swing_low(df, idx=5, window=1, lookback=10)
+    assert res_at_5 is None, f"Expected None at decision_idx=5, got {res_at_5}"
 
-    # When decision_idx = 10 (bar 10), right window (8, 9, 10) is fully available <= 10.
-    res_at_10 = find_recent_swing_low(df, idx=10, window=3, lookback=10)
-    assert res_at_10 == 5.0, f"Expected 5.0 at decision_idx=10, got {res_at_10}"
+    # At decision_idx = 6, end = 6, candidate i = 4 gives i + window = 5 < end (6), so bar 4 is confirmed.
+    res_at_6 = find_recent_swing_low(df, idx=6, window=1, lookback=10)
+    assert res_at_6 == 5.0, f"Expected 5.0 at decision_idx=6, got {res_at_6}"
     print("test_swing_low_no_lookahead passed!")
 
 
 def test_swing_high_no_lookahead():
-    # Construct a dataframe where high peak occurs at index 7.
-    # With window=3, index 7 requires bars 8, 9, 10 to confirm.
-    highs = [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 15.0, 1.0, 1.0, 1.0, 1.0]
+    # Non-flat falling baseline with a peak at index 4 (value 25.0) and window=1.
+    # Bar 4 requires right window [bar 5] (highs[5] = 10.0) to confirm.
+    highs = [20.0, 19.0, 18.0, 17.0, 25.0, 10.0, 9.0]
     df = pd.DataFrame({"high": highs})
 
-    # When decision_idx = 8, right window (8, 9, 10) is incomplete because bar 10 > decision_idx 8.
-    res_at_8 = find_recent_swing_high(df, idx=8, window=3, lookback=10)
-    assert res_at_8 is None, f"Expected None at decision_idx=8, got {res_at_8}"
+    # At decision_idx = 5, candidate i = 4 gives i + window = 5 >= end (5), so bar 4 is not confirmed.
+    res_at_5 = find_recent_swing_high(df, idx=5, window=1, lookback=10)
+    assert res_at_5 is None, f"Expected None at decision_idx=5, got {res_at_5}"
 
-    # When decision_idx = 10, right window (8, 9, 10) is fully available <= 10.
-    res_at_10 = find_recent_swing_high(df, idx=10, window=3, lookback=10)
-    assert res_at_10 == 15.0, f"Expected 15.0 at decision_idx=10, got {res_at_10}"
+    # At decision_idx = 6, end = 6, candidate i = 4 gives i + window = 5 < end (6), so bar 4 is confirmed.
+    res_at_6 = find_recent_swing_high(df, idx=6, window=1, lookback=10)
+    assert res_at_6 == 25.0, f"Expected 25.0 at decision_idx=6, got {res_at_6}"
     print("test_swing_high_no_lookahead passed!")
 
 
