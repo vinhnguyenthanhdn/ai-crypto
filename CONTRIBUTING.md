@@ -110,6 +110,10 @@ no workflow change. Two things it needs to run standalone: the repository root o
 `PYTHONPATH` (the loop above sets it, as does CI), and a `__main__` block that calls
 each test function.
 
+Tests that need `data/backtests/` artifacts cannot run on a clean checkout, because
+those artifacts are never committed. Such a test checks for its inputs and prints
+`SKIP` instead of failing — locally, where the artifacts exist, it runs in full.
+
 ## Never commit
 
 - Credentials of any kind. API keys must be read-only; never grant trade or withdraw

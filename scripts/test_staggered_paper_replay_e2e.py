@@ -87,4 +87,7 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    if not FLOW_CACHE.exists():
+        print(f"SKIP staggered Paper E2E real-data — artifact absent: {FLOW_CACHE}")
+    else:
+        main()
