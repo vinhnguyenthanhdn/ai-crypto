@@ -29,14 +29,33 @@ jobs:
       - name: Compile all sources
         run: python -m compileall -q src scripts
 
-      - name: Scoring regression
-        run: python scripts/test_scoring.py
-
-      - name: Support/resistance regression
-        run: python scripts/test_sr_scoring.py
-
-      - name: Swing lookahead regression
-        run: python scripts/test_swing_lookahead.py
+      - name: Regression suite (every scripts/test_*.py)
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          files=(scripts/test_*.py)
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "No test file matched scripts/test_*.py — the suite must never be empty."
+            exit 1
+          fi
+          failed=()
+          for f in "${files[@]}"; do
+            echo "::group::$f"
+            if python "$f"; then
+              echo "PASS $f"
+            else
+              echo "FAIL $f"
+              failed+=("$f")
+            fi
+            echo "::endgroup::"
+          done
+          echo "Ran ${#files[@]} test file(s), ${#failed[@]} failed."
+          if [ ${#failed[@]} -gt 0 ]; then
+            printf 'FAILED: %s\n' "${failed[@]}"
+            exit 1
+          fi
 
       - name: Whitespace and conflict markers
         run: git diff --check "$(git rev-list --max-parents=0 HEAD | tail -1)"..HEAD

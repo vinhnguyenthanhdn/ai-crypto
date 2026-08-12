@@ -101,10 +101,18 @@ Before opening a pull request:
 
 ```bash
 PYTHONPYCACHEPREFIX=/tmp/ai-crypto-pycache .venv/bin/python -m compileall -q src scripts
-.venv/bin/python scripts/test_scoring.py
-.venv/bin/python scripts/test_sr_scoring.py
+for f in scripts/test_*.py; do PYTHONPATH=. .venv/bin/python "$f" || echo "FAIL $f"; done
 git diff --check
 ```
+
+CI runs every file matching `scripts/test_*.py`, so a new test file is picked up with
+no workflow change. Two things it needs to run standalone: the repository root on
+`PYTHONPATH` (the loop above sets it, as does CI), and a `__main__` block that calls
+each test function.
+
+Tests that need `data/backtests/` artifacts cannot run on a clean checkout, because
+those artifacts are never committed. Such a test checks for its inputs and prints
+`SKIP` instead of failing — locally, where the artifacts exist, it runs in full.
 
 ## Never commit
 
