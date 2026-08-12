@@ -1,5 +1,11 @@
+import sys
+from pathlib import Path
+
 import pandas as pd
-from src.indicators.technical import find_recent_swing_low, find_recent_swing_high
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from src.indicators.technical import find_recent_swing_low, find_recent_swing_high  # noqa: E402
 
 
 def test_swing_low_no_lookahead():
