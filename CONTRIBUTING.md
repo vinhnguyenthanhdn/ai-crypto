@@ -127,3 +127,37 @@ those artifacts are never committed. Such a test checks for its inputs and print
 Open an issue before large changes so the direction can be discussed. In the PR
 description, state what you changed, how you verified it, and — if it touches
 measurement — which existing results are affected.
+
+### Stay inside the scope of the issue
+
+A pull request that fixes one behaviour touches the lines implementing that
+behaviour, plus a test. It does not rewrite the module around them. This matters more
+here than style preference: a rewritten file cannot be reviewed against the issue it
+claims to close, and it silently drops guards that earlier fixes put in.
+
+Concretely, a change gets sent back when it:
+
+- removes a public function, or changes a signature other callers use — check with
+  `grep -rn "function_name" src scripts` before touching one;
+- replaces an implementation with a differently-shaped one instead of editing it;
+- adds indicators or helpers the repository already gets from `ta`;
+- bundles unrelated cleanups with the fix.
+
+Two checks catch nearly all of this before review:
+
+```bash
+git diff --stat main...HEAD                                  # is the diff the size of the fix?
+git diff main...HEAD | grep '^-.*def '                       # any public function removed?
+```
+
+If a fix genuinely needs a wider change, open an issue describing the wider change
+first. Splitting it into a minimal fix now and a refactor later gets both merged
+faster than one pull request doing both.
+
+### Verify by running, not by reading
+
+Every claim in a pull request should come with the command that produced it. For a
+change to an indicator, a signal, or a cost model, include how many calls change
+result out of how many — run the old and the new implementation side by side over
+randomly generated OHLC series and count differences. A change that measures as a
+no-op is worth knowing about before merge, not after.

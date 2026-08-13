@@ -1,0 +1,35 @@
+name: Bug report
+description: Code behaves differently than documented, or produces a wrong number
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What is wrong
+      description: Name the function or script, the input, and the output you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction
+      description: >
+        A snippet that runs on a clean checkout and prints the wrong result. Run it
+        with `PYTHONPATH=. .venv/bin/python repro.py` before pasting.
+      render: python
+    validations:
+      required: true
+  - type: textarea
+    id: impact
+    attributes:
+      label: What it affects
+      description: >
+        Which callers, artifacts in `data/backtests/`, or numbers in `docs/` are
+        affected. If a published result becomes invalid, say which one.
+  - type: input
+    id: env
+    attributes:
+      label: Python version and OS
+      placeholder: Python 3.12, macOS 15.6
+    validations:
+      required: true
