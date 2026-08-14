@@ -190,6 +190,7 @@ scheduling contract.
 | `docs/todo.md` | Not-yet-started tasks and known risks |
 | `docs/execution-cost.md` | Measured fees, slippage, tax, venue constraints |
 | `docs/code-audit.md` | Per-branch code trust levels and confirmed bugs |
+| `CHANGELOG.md` | Released versions, what changed, and known limitations per release |
 
 Documentation follows a single-source-of-truth rule: each fact lives in exactly one
 file. Please preserve that when contributing.
