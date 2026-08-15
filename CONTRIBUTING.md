@@ -150,6 +150,11 @@ git diff --stat main...HEAD                                  # is the diff the s
 git diff main...HEAD | grep '^-.*def '                       # any public function removed?
 ```
 
+CI enforces the first of these. The `scope-guard` job (`scripts/scope_guard.py`) fails a
+pull request that removes a module-level public definition from `src/` without naming
+that definition in the pull request description. Removing one is allowed; removing one
+silently is not.
+
 If a fix genuinely needs a wider change, open an issue describing the wider change
 first. Splitting it into a minimal fix now and a refactor later gets both merged
 faster than one pull request doing both.

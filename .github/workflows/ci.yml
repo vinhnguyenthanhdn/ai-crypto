@@ -60,6 +60,25 @@ jobs:
       - name: Whitespace and conflict markers
         run: git diff --check "$(git rev-list --max-parents=0 HEAD | tail -1)"..HEAD
 
+  scope-guard:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Removed public definitions must be named in the PR description
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: python scripts/scope_guard.py "$BASE_SHA" "$HEAD_SHA"
+
   guard-secrets:
     runs-on: ubuntu-latest
     steps:
