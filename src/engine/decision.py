@@ -231,12 +231,6 @@ def _utc_datetime(value) -> datetime:
     return value.astimezone(timezone.utc)
 
 
-def holding_minutes(entry_time, current_time=None) -> float:
-    if entry_time is None:
-        return 0.0
-    return max(0.0, (_utc_datetime(current_time) - _utc_datetime(entry_time)).total_seconds() / 60)
-
-
 def _max_hold_reached(entry_time, current_time=None, max_hold_minutes: float | None = None) -> bool:
     if entry_time is None:
         return False
