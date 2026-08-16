@@ -159,6 +159,21 @@ If a fix genuinely needs a wider change, open an issue describing the wider chan
 first. Splitting it into a minimal fix now and a refactor later gets both merged
 faster than one pull request doing both.
 
+### Record the change in the changelog
+
+A pull request that changes anything a user of this repository would notice — behaviour,
+a command, a documented result, a guarantee about what CI grades — adds a line to the
+`## [Unreleased]` section of [`CHANGELOG.md`](CHANGELOG.md), under `Added`, `Changed`,
+`Fixed` or `Known limitations`.
+
+Write what changed and what it means for someone reading a result, not the file names:
+"the E2E test now runs on a clean checkout" rather than "updated test file". Contributions
+are credited there by issue number and GitHub handle, which is the entry that survives
+into the release notes.
+
+Pure refactors, typo fixes and internal test additions that change nothing observable do
+not need an entry.
+
 ### Verify by running, not by reading
 
 Every claim in a pull request should come with the command that produced it. For a
