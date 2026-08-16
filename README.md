@@ -127,13 +127,52 @@ Full detail in `docs/code-audit.md`.
 
 ## Architecture
 
+Two pipelines run over the same market data and meet at one place: the frozen
+strategy core. What each pipeline builds *around* that core is written separately,
+which is what the parity numbers above actually test.
+
 ```text
-Exchange → Collector → Feature Engine → Rule Engine → Risk Engine
-→ Paper Execution State → Event/Trade Log → Report
+                     ┌──────────────── research path ────────────────┐
+Exchange ─→ Fetch ─→ │ discover_*.py → analyse → freeze contract      │ ─→ data/backtests/*.json
+   │                 │      (parameter search on the training split)  │      (result artifacts)
+   │                 └───────────────────────┬───────────────────────┘
+   │                                         │  src/engine/*.py
+   │                                         │  FROZEN_CONTRACT
+   │                                         ▼
+   │                 ┌──────────────── runtime path ─────────────────┐
+   └──→ Collector ─→ │ Feature Engine → Rule Engine → Risk Engine →  │ ─→ SQLite state store
+        (WebSocket)  │ Paper Execution                               │      event_log
+                     └───────────────────────────────────────────────┘      equity_ledger
+                                                                            feature_snapshot
+                                                                                  │
+                                                                                  ▼
+                                                                            Report / dashboard
 ```
 
-The runtime is a pure rule engine. Entry models, RAG, and champion/challenger model
-serving exist as scaffolding and do not participate in decisions.
+Reading the diagram:
+
+- **The research path searches; the runtime path executes.** Parameters are chosen
+  on the training split only, then the contract is frozen into `src/engine/` and the
+  runtime is never allowed to retune it.
+- **Parity is a replay, not a diff.** `scripts/validate_funding_crowding_parity.py`
+  and `scripts/verify_staggered_runtime_parity.py` drive the production strategy core
+  (`entry_plan`, `exit_decision`, `rank_entries`) through an independently written
+  execution loop over the same window the research loop covered, then match the two
+  ledgers trade-for-trade. Be precise about what that buys: the signal logic is
+  shared by construction, so parity cannot vindicate it. What parity does catch is
+  divergence in everything wrapped around it — position bookkeeping, timing, cost
+  application, ledger accounting — which is where backtest-versus-live disagreements
+  in this repository have actually come from.
+- **State is the audit trail, not a cache.** Every decision lands in the append-only
+  `event_log` with a `feature_snapshot` recording exactly which inputs produced it,
+  and money moves only through the idempotent `equity_ledger`. Any logged trade can
+  be reconstructed from these three tables without rerunning the engine.
+- **The runtime is a pure rule engine.** Entry models, RAG, and champion/challenger
+  model serving exist as scaffolding and do not participate in decisions.
+
+Trust levels differ between the two paths — see
+[Two code paths, two trust levels](#two-code-paths-two-trust-levels) before relying
+on a number from either.
 
 ```text
 src/           Runtime: collector, indicators, decision/risk engines, state store
@@ -194,6 +233,55 @@ scheduling contract.
 
 Documentation follows a single-source-of-truth rule: each fact lives in exactly one
 file. Please preserve that when contributing.
+
+## Limitations
+
+What this repository does *not* do, so you can decide in one screen whether it is
+useful to you. (What it *found* is a separate matter — see
+[Honest status](#honest-status-no-validated-edge-yet).)
+
+**Scope**
+
+- **It never trades.** No order-placement call exists anywhere in `src/` or
+  `scripts/`; there is no code path from a signal to a venue, disabled or otherwise.
+  Adding one is your work, and `docs/code-audit.md` lists what you would have to fix
+  first.
+- **One instrument at runtime.** The runtime is configured for a single spot symbol
+  on a single timeframe at leverage 1 (`SYMBOL`, `TIMEFRAME` in `.env.example`).
+  Multi-asset work exists only in the research scripts.
+- **Two venues, both read-only.** OKX is the primary exchange and Binance the second
+  collector source. Nothing else is implemented, and API keys must have no trade or
+  withdraw permission.
+
+**Statistical**
+
+- **No multiple-testing correction is implemented.** There is no deflated Sharpe, no
+  White reality check, no PBO, and no trials counter in the discovery scripts. With a
+  search of this size, a holdout profit factor near 1.0 is inside selection noise and
+  nothing in the code currently says so. This is the single largest gap in the
+  research path — tracked in
+  [#6](https://github.com/vinhnguyenthanhdn/ai-crypto/issues/6), scoped down to the
+  trials counter so it fits one pull request.
+- **The negative result is about the families searched here**, on this data, under
+  these cost assumptions. It is not a claim that no intraday edge exists.
+
+**Operational**
+
+- **Scheduling is macOS-only.** The scheduler is a launchd agent, and the installer
+  under `scripts/` still contains absolute paths from the author's machine, so it
+  needs editing before it runs anywhere else. There is no Linux or Windows equivalent.
+- **The dashboard is local-only** — it binds `127.0.0.1` and is not meant to be
+  exposed.
+- **Python 3.10 and 3.12 are what CI proves.** Other versions may work; nothing
+  verifies that.
+
+**Reproducibility**
+
+- **Datasets and result artifacts are not committed** — they are large, and the
+  fetch scripts rebuild them. Expect a long first run.
+- **One end-to-end test cannot run on a clean checkout** and prints `SKIP` rather
+  than failing, so a green CI does not mean it was graded. Which test, what it needs,
+  and why it stays that way: `docs/test-coverage-gaps.md`.
 
 ## Contributing
 
