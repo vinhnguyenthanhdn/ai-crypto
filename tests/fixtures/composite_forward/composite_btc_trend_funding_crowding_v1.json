@@ -1,0 +1,9 @@
+{
+  "package_id": "composite_btc_trend_funding_crowding_v1",
+  "status": "PAPER_CHALLENGER",
+  "live_execution": false,
+  "signal_policy": {
+    "news": "disabled",
+    "sentiment_feed": "disabled"
+  }
+}
