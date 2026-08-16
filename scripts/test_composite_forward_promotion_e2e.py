@@ -30,19 +30,49 @@ def write_json(path: Path, value: dict) -> None:
 
 
 REQUIRED_ARTIFACTS = (
-    "data/backtests/composite_btc_trend_funding_crowding_5y.json",
-    "data/backtests/funding_crowding_runtime_parity_5y.json",
-    "data/backtests/funding_crowding_paper_5y.json",
-    "data/backtests/btc_spot_trend_paper_9y.json",
-    "data/strategy_packages/composite_btc_trend_funding_crowding_v1.json",
+    "composite_btc_trend_funding_crowding_5y.json",
+    "funding_crowding_runtime_parity_5y.json",
+    "funding_crowding_paper_5y.json",
+    "btc_spot_trend_paper_9y.json",
+    "composite_btc_trend_funding_crowding_v1.json",
 )
+
+PROJECT = Path(__file__).resolve().parent.parent
+FIXTURE_DIR = PROJECT / "tests" / "fixtures" / "composite_forward"
+
+#: base filename -> the gitignored real-data subdirectory it normally lives in.
+ARTIFACT_SUBDIR = {
+    "composite_btc_trend_funding_crowding_5y.json": "data/backtests",
+    "funding_crowding_runtime_parity_5y.json": "data/backtests",
+    "funding_crowding_paper_5y.json": "data/backtests",
+    "btc_spot_trend_paper_9y.json": "data/backtests",
+    "composite_btc_trend_funding_crowding_v1.json": "data/strategy_packages",
+}
+
+
+def artifact_path(filename: str) -> Path:
+    """Prefer the real data artifact when present; otherwise the committed fixture.
+
+    The real result files live under ``data/backtests/`` and
+    ``data/strategy_packages/``, which are gitignored and rejected by the
+    ``guard-secrets`` CI job, so they are never present on a clean checkout. The
+    committed fixtures under ``tests/fixtures/composite_forward/`` are small
+    stand-ins that let this test run on a clean clone. Anyone who has the real
+    artifacts keeps using them unchanged — they take precedence.
+    """
+    real = PROJECT / ARTIFACT_SUBDIR[filename] / filename
+    if real.exists():
+        return real
+    return FIXTURE_DIR / filename
 
 
 def missing_artifacts() -> list[str]:
-    """Backtest artifacts are never committed, so this test cannot run on a clean
-    checkout. Report what is absent instead of failing on a missing file."""
-    project = Path(__file__).resolve().parent.parent
-    return [name for name in REQUIRED_ARTIFACTS if not (project / name).exists()]
+    """Artifacts absent from BOTH the real data location and the fixture set.
+
+    With the fixture files committed this should be empty on any checkout; it only
+    reports names if the fixtures themselves are deleted.
+    """
+    return [name for name in REQUIRED_ARTIFACTS if not artifact_path(name).exists()]
 
 
 def main() -> None:
@@ -55,16 +85,15 @@ def main() -> None:
         backtests = root / "data/backtests"
         package_dir = root / "data/strategy_packages"
         package_dir.mkdir(parents=True)
-        project = Path(__file__).resolve().parent.parent
         for name in (
             "composite_btc_trend_funding_crowding_5y.json",
             "funding_crowding_runtime_parity_5y.json",
             "funding_crowding_paper_5y.json", "btc_spot_trend_paper_9y.json",
         ):
             backtests.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(project / "data/backtests" / name, backtests / name)
+            shutil.copy2(artifact_path(name), backtests / name)
         shutil.copy2(
-            project / "data/strategy_packages/composite_btc_trend_funding_crowding_v1.json",
+            artifact_path("composite_btc_trend_funding_crowding_v1.json"),
             package_dir / "composite_btc_trend_funding_crowding_v1.json",
         )
 

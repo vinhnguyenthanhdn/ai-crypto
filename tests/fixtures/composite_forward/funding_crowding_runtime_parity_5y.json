@@ -1,0 +1,14 @@
+{
+  "passed": true,
+  "splits": {
+    "train": {
+      "passed": true
+    },
+    "validation": {
+      "passed": true
+    },
+    "test": {
+      "passed": true
+    }
+  }
+}
