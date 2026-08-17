@@ -64,6 +64,23 @@ def _layer_scores_from_technical(tech_result, regime_result):
     }
 
 
+def max_attainable_score(scored_layers=("technical", "regime")) -> float:
+    """Điểm tổng cao nhất có thể đạt khi các layer không được chấm bị ghim ở
+    `NEUTRAL_SCORE`. Tính từ `config.WEIGHTS` chứ không hard-code, để ngưỡng và
+    trọng số đổi thì guard vẫn đúng."""
+    return round(sum(
+        (100.0 if layer in scored_layers else NEUTRAL_SCORE) * weight / 100
+        for layer, weight in config.WEIGHTS.items()
+    ), 2)
+
+
+def _threshold_reachable(effective_threshold: float) -> tuple[bool, str | None]:
+    max_score = max_attainable_score()
+    if effective_threshold <= max_score:
+        return True, None
+    return False, f"MAX_SCORE_{max_score:.2f}_BELOW_THRESHOLD_{effective_threshold:.2f}"
+
+
 def run_backtest(
     df: pd.DataFrame,
     symbol: str | None = None,
@@ -79,6 +96,9 @@ def run_backtest(
     n = len(df)
     if n <= WARMUP_BARS + 2:
         raise ValueError(f"Cần tối thiểu {WARMUP_BARS + 2} bar để warmup indicator, chỉ có {n}")
+
+    effective_threshold = config.BUY_SCORE_THRESHOLD if buy_threshold is None else buy_threshold
+    entry_possible, short_circuit_reason = _threshold_reachable(effective_threshold)
 
     cooldown_bars = max(1, round(config.COOLDOWN_MINUTES / _timeframe_minutes(timeframe)))
 
@@ -174,6 +194,8 @@ def run_backtest(
         "slippage_pct": slippage_pct,
         "n_skipped_cost_gate": n_skipped_cost_gate,
         "min_tp_cost_ratio": config.MIN_TP_COST_RATIO,
+        "entry_possible": entry_possible,
+        "short_circuit_reason": short_circuit_reason,
         **stats,
     }
 

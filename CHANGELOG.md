@@ -17,11 +17,21 @@ reported unless it can be regenerated from the scripts in this repository.
   was returned as a swing (#13, contributed by `mercael91`). A swing now has to be
   strictly beyond its neighbours, which is the rule `src/engine/support_resistance.py`
   already applied. Structural stop-loss and take-profit levels move as a result.
+- A backtest that scores only the technical and regime layers could never reach the BUY
+  threshold, and reported the result as zero trades rather than as an unreachable
+  threshold (#5, contributed by `mercael91`). With the other layers pinned at
+  `NEUTRAL_SCORE` the weighted total tops out at 69.0 against a threshold of 70.0, so
+  the run was decided before it started.
 
 ### Added
 
 - `scripts/test_swing_strictness.py` pins that behaviour from both directions: a flat
   series and a two-bar plateau yield no swing, and an isolated dip or peak still does.
+- `max_attainable_score()` in `src/backtest/engine.py`, computed from `config.WEIGHTS`
+  rather than hard-coded, and the `entry_possible` / `short_circuit_reason` fields that
+  both backtest engines now report. A run that cannot produce an entry says so instead
+  of returning an empty trade list.
+- `scripts/test_threshold_reachable.py` covers both engines and both directions.
 - `scope-guard` CI job (`scripts/scope_guard.py`): a pull request that removes a
   module-level public definition from `src/` fails unless the description names that
   definition (#16). Three layers of prose asking for the same thing had been ignored by

@@ -20,7 +20,7 @@ from ..engine import regime as regime_engine
 from ..engine import decision, risk
 from .engine import (
     WARMUP_BARS, NEUTRAL_SCORE, DEFAULT_FEE_PCT, DEFAULT_SLIPPAGE_PCT,
-    _timeframe_minutes, compute_accounting_stats,
+    _timeframe_minutes, compute_accounting_stats, _threshold_reachable,
 )
 
 
@@ -49,6 +49,9 @@ def run_backtest_short(
     n = len(df)
     if n <= WARMUP_BARS + 2:
         raise ValueError(f"Cần tối thiểu {WARMUP_BARS + 2} bar để warmup indicator, chỉ có {n}")
+
+    effective_threshold = config.BUY_SCORE_THRESHOLD if short_threshold is None else short_threshold
+    entry_possible, short_circuit_reason = _threshold_reachable(effective_threshold)
 
     cooldown_bars = max(1, round(config.COOLDOWN_MINUTES / _timeframe_minutes(timeframe)))
 
@@ -141,5 +144,7 @@ def run_backtest_short(
         "slippage_pct": slippage_pct,
         "n_skipped_cost_gate": n_skipped_cost_gate,
         "min_tp_cost_ratio": config.MIN_TP_COST_RATIO,
+        "entry_possible": entry_possible,
+        "short_circuit_reason": short_circuit_reason,
         **stats,
     }
