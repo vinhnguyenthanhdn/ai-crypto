@@ -23,6 +23,13 @@ reported unless it can be regenerated from the scripts in this repository.
   path and reached by no test (#25, contributed by `dchaudhari7177`). Every import in
   a script is now resolved wherever it sits, and scripts with a `__main__` guard get
   that check in addition to being imported.
+
+### Changed
+
+- The script import check exempts an import whose own `except ImportError` handler says it
+  may fail, so declaring a dependency optional cannot be turned into a hard requirement by
+  the checker. Nothing in `scripts/` uses that pattern today, and a test says so, so the day
+  one does it shows up as a decision rather than as a missing module.
 - `find_recent_swing_low` and `find_recent_swing_high` compared a candidate bar with
   `<=` / `>=`, so in a flat price region every bar qualified and the first one scanned
   was returned as a swing (#13, contributed by `mercael91`). A swing now has to be

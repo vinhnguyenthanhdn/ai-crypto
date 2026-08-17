@@ -10,6 +10,12 @@ used to escape both paths (#25) — importlib executes the module body, and a
 function body is not the module body — so a broken deferred import shipped
 green.
 
+One exemption, and it is the reason this check is safe to apply everywhere: an
+import inside a ``try`` whose handler catches ``ImportError`` is *meant* to be
+allowed to fail, so resolving it would turn an optional dependency into a hard
+requirement. No script uses that pattern today; the exemption exists so that the
+day one does, this file does not have to be the thing that notices.
+
 Scripts that guard their body with ``if __name__ == "__main__":`` are *also*
 imported via importlib (no ``__main__`` run), which additionally proves the
 module body executes. Scripts that execute at import time get the AST scan
@@ -81,15 +87,50 @@ def _has_main_guard(tree: ast.AST) -> bool:
     return False
 
 
+def _optional_import_nodes(tree: ast.AST) -> set[int]:
+    """Import statements the author already said are allowed to fail.
+
+    ``try: import x / except ImportError:`` declares a dependency as optional.
+    Resolving those names would report a module as missing that is *designed*
+    to be absent, so they are skipped.
+    """
+    exempt: set[int] = set()
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Try):
+            continue
+        if not any(_catches_import_error(h) for h in node.handlers):
+            continue
+        for stmt in node.body:
+            for inner in ast.walk(stmt):
+                if isinstance(inner, (ast.Import, ast.ImportFrom)):
+                    exempt.add(id(inner))
+    return exempt
+
+
+def _catches_import_error(handler: ast.ExceptHandler) -> bool:
+    caught = handler.type
+    if caught is None:  # bare `except:` catches ImportError too
+        return True
+    names = caught.elts if isinstance(caught, ast.Tuple) else [caught]
+    return any(
+        isinstance(n, ast.Name) and n.id in {"ImportError", "ModuleNotFoundError"}
+        for n in names
+    )
+
+
 def _imported_modules(tree: ast.AST) -> list[str]:
     """Every absolute module name imported anywhere in the file.
 
     Walks the whole tree, not just ``tree.body``: an import inside a function
     body is not the module body, so neither the importlib path nor a
-    top-level-only scan ever resolved it (#25).
+    top-level-only scan ever resolved it (#25). Imports declared optional by an
+    ``except ImportError`` handler are left out.
     """
+    exempt = _optional_import_nodes(tree)
     names: list[str] = []
     for node in ast.walk(tree):
+        if id(node) in exempt:
+            continue
         if isinstance(node, ast.Import):
             names.extend(alias.name for alias in node.names)
         elif isinstance(node, ast.ImportFrom):
@@ -158,6 +199,49 @@ def test_imports_in_function_bodies_are_collected() -> None:
     }
 
 
+def test_optional_imports_are_exempt() -> None:
+    """An import the author allowed to fail must not be reported as missing."""
+    tree = ast.parse(
+        "try:\n"
+        "    import optional_thing_xyz\n"
+        "except ImportError:\n"
+        "    optional_thing_xyz = None\n"
+        "import os\n"
+    )
+    assert _imported_modules(tree) == ["os"]
+
+    # A tuple of exception types, and a required import in the same file.
+    tree = ast.parse(
+        "try:\n"
+        "    from optional_pkg_xyz import thing\n"
+        "except (ValueError, ModuleNotFoundError):\n"
+        "    thing = None\n"
+        "def f():\n"
+        "    import json\n"
+    )
+    assert _imported_modules(tree) == ["json"]
+
+    # The exemption is not a blanket one: a try that catches something else
+    # still has its imports resolved.
+    tree = ast.parse(
+        "try:\n"
+        "    import required_thing_xyz\n"
+        "except ValueError:\n"
+        "    pass\n"
+    )
+    assert _imported_modules(tree) == ["required_thing_xyz"]
+
+
+def test_no_script_relies_on_the_optional_import_exemption() -> None:
+    """Today nothing does. This says so out loud, so a change is visible."""
+    using = [
+        path.name
+        for path in _non_test_scripts()
+        if _optional_import_nodes(ast.parse(path.read_text(encoding="utf-8")))
+    ]
+    assert using == [], f"optional-import exemption now in use by: {using}"
+
+
 def test_relative_imports_are_still_skipped() -> None:
     """scripts/ is not a package, so find_spec cannot resolve these."""
     tree = ast.parse("from . import sibling\ndef f():\n    from .mod import thing\n")
@@ -192,6 +276,8 @@ def main() -> None:
     _run("script list is derived from scripts/", test_every_non_test_script_is_checked)
     _run("plot_social_preview is AST-only", test_plot_social_preview_is_not_imported)
     _run("function-body imports are collected", test_imports_in_function_bodies_are_collected)
+    _run("optional imports are exempt", test_optional_imports_are_exempt)
+    _run("no script uses the exemption yet", test_no_script_relies_on_the_optional_import_exemption)
     _run("relative imports are skipped", test_relative_imports_are_still_skipped)
     _run("broken function-body import fails", test_a_broken_import_in_a_function_body_is_reported)
     for path in _non_test_scripts():
