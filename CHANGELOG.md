@@ -10,8 +10,18 @@ reported unless it can be regenerated from the scripts in this repository.
 
 ## [Unreleased]
 
+### Fixed
+
+- `find_recent_swing_low` and `find_recent_swing_high` compared a candidate bar with
+  `<=` / `>=`, so in a flat price region every bar qualified and the first one scanned
+  was returned as a swing (#13, contributed by `mercael91`). A swing now has to be
+  strictly beyond its neighbours, which is the rule `src/engine/support_resistance.py`
+  already applied. Structural stop-loss and take-profit levels move as a result.
+
 ### Added
 
+- `scripts/test_swing_strictness.py` pins that behaviour from both directions: a flat
+  series and a two-bar plateau yield no swing, and an isolated dip or peak still does.
 - `scope-guard` CI job (`scripts/scope_guard.py`): a pull request that removes a
   module-level public definition from `src/` fails unless the description names that
   definition (#16). Three layers of prose asking for the same thing had been ignored by
