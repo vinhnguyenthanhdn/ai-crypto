@@ -15,9 +15,14 @@ reported unless it can be regenerated from the scripts in this repository.
 - CI compiled `scripts/` without ever importing them, so a broken import in a
   non-test script shipped green (#23). `scripts/test_script_imports.py` now
   importlib-loads scripts that have a `__main__` guard and AST-resolves the
-  rest (notably `plot_social_preview.py`, which writes a PNG at import).
-
-
+  rest (notably `plot_social_preview.py`, which writes a PNG at import)
+  (contributed by `AshSgDe29071999`).
+- That first import check only resolved imports written at the top of a file, so a
+  broken import inside a function body still shipped green — including
+  `scripts/train_entry_model.py`, whose `joblib` import is deferred to the `--out`
+  path and reached by no test (#25, contributed by `dchaudhari7177`). Every import in
+  a script is now resolved wherever it sits, and scripts with a `__main__` guard get
+  that check in addition to being imported.
 - `find_recent_swing_low` and `find_recent_swing_high` compared a candidate bar with
   `<=` / `>=`, so in a flat price region every bar qualified and the first one scanned
   was returned as a swing (#13, contributed by `mercael91`). A swing now has to be
