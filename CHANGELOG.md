@@ -12,6 +12,12 @@ reported unless it can be regenerated from the scripts in this repository.
 
 ### Fixed
 
+- CI compiled `scripts/` without ever importing them, so a broken import in a
+  non-test script shipped green (#23). `scripts/test_script_imports.py` now
+  importlib-loads scripts that have a `__main__` guard and AST-resolves the
+  rest (notably `plot_social_preview.py`, which writes a PNG at import).
+
+
 - `find_recent_swing_low` and `find_recent_swing_high` compared a candidate bar with
   `<=` / `>=`, so in a flat price region every bar qualified and the first one scanned
   was returned as a swing (#13, contributed by `mercael91`). A swing now has to be
