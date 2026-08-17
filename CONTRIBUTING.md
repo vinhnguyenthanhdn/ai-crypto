@@ -54,6 +54,26 @@ Higher-impact work is labelled `help wanted`:
 - **Challenging a rejection.** Every contract and artifact is documented. If you
   believe a family was rejected for the wrong reason, reproduce it and show the work.
 
+## Ways to contribute that aren't code
+
+Writing the patch is often the cheapest part of a change here. Deciding whether a
+number can be trusted is not, and that work is welcome on its own terms:
+
+- **Reproducing a reported defect, or failing to.** An issue that says "still happens
+  on `main` as of <commit>, here is the output" is worth more than a second opinion,
+  and so is "I could not reproduce this, here is what I ran instead".
+- **Challenging a published result.** Every rejection in this repository is meant to
+  be attackable. If the artifacts do not support the conclusion drawn from them, say
+  so with the run you did.
+- **Reviewing an open pull request.** Especially one that touches
+  `src/backtest/engine.py` or `src/indicators/technical.py`, where a change can move
+  numbers that are already published.
+- **Reporting what the documented commands do on a setup that is not macOS with
+  Python 3.12** — that is the only environment they are checked on outside CI.
+
+These are credited the same way a patch is: `CHANGELOG.md` names the person whose
+report or review caused the change, not only the author of the commit.
+
 ## Code layout and trust levels
 
 Before relying on any number, read `docs/code-audit.md`. Two code paths coexist with
