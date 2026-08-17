@@ -10,3 +10,4 @@ lightgbm
 scikit-learn
 joblib
 flask
+matplotlib

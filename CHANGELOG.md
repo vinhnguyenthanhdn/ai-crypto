@@ -22,6 +22,11 @@ reported unless it can be regenerated from the scripts in this repository.
   threshold (#5, contributed by `mercael91`). With the other layers pinned at
   `NEUTRAL_SCORE` the weighted total tops out at 69.0 against a threshold of 70.0, so
   the run was decided before it started.
+- `matplotlib` was imported by `scripts/plot_gross_edge.py` and
+  `scripts/plot_social_preview.py` but never declared in `requirements.txt`, so the
+  README's invitation to regenerate the edge chart failed on a clean install with
+  `ModuleNotFoundError` (#9, contributed by `stefannut`). Plotting stays optional at
+  runtime: nothing under `src/` imports it.
 
 ### Added
 
