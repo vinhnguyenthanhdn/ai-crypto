@@ -128,7 +128,7 @@ def find_recent_swing_low(df: pd.DataFrame, idx: int = -1, window: int = 3, look
         if i - window < 0 or i + window >= end:
             continue
         left, right = lows[i - window:i], lows[i + 1:i + 1 + window]
-        if lows[i] <= left.min() and lows[i] <= right.min():
+        if lows[i] < left.min() and lows[i] < right.min():
             return float(lows[i])
     return None
 
@@ -144,7 +144,7 @@ def find_recent_swing_high(df: pd.DataFrame, idx: int = -1, window: int = 3, loo
         if i - window < 0 or i + window >= end:
             continue
         left, right = highs[i - window:i], highs[i + 1:i + 1 + window]
-        if highs[i] >= left.max() and highs[i] >= right.max():
+        if highs[i] > left.max() and highs[i] > right.max():
             return float(highs[i])
     return None
 

@@ -127,3 +127,57 @@ those artifacts are never committed. Such a test checks for its inputs and print
 Open an issue before large changes so the direction can be discussed. In the PR
 description, state what you changed, how you verified it, and — if it touches
 measurement — which existing results are affected.
+
+### Stay inside the scope of the issue
+
+A pull request that fixes one behaviour touches the lines implementing that
+behaviour, plus a test. It does not rewrite the module around them. This matters more
+here than style preference: a rewritten file cannot be reviewed against the issue it
+claims to close, and it silently drops guards that earlier fixes put in.
+
+Concretely, a change gets sent back when it:
+
+- removes a public function, or changes a signature other callers use — check with
+  `grep -rn "function_name" src scripts` before touching one;
+- replaces an implementation with a differently-shaped one instead of editing it;
+- adds indicators or helpers the repository already gets from `ta`;
+- bundles unrelated cleanups with the fix.
+
+Two checks catch nearly all of this before review:
+
+```bash
+git diff --stat main...HEAD                                  # is the diff the size of the fix?
+git diff main...HEAD | grep '^-.*def '                       # any public function removed?
+```
+
+CI enforces the first of these. The `scope-guard` job (`scripts/scope_guard.py`) fails a
+pull request that removes a module-level public definition from `src/` without naming
+that definition in the pull request description. Removing one is allowed; removing one
+silently is not.
+
+If a fix genuinely needs a wider change, open an issue describing the wider change
+first. Splitting it into a minimal fix now and a refactor later gets both merged
+faster than one pull request doing both.
+
+### Record the change in the changelog
+
+A pull request that changes anything a user of this repository would notice — behaviour,
+a command, a documented result, a guarantee about what CI grades — adds a line to the
+`## [Unreleased]` section of [`CHANGELOG.md`](CHANGELOG.md), under `Added`, `Changed`,
+`Fixed` or `Known limitations`.
+
+Write what changed and what it means for someone reading a result, not the file names:
+"the E2E test now runs on a clean checkout" rather than "updated test file". Contributions
+are credited there by issue number and GitHub handle, which is the entry that survives
+into the release notes.
+
+Pure refactors, typo fixes and internal test additions that change nothing observable do
+not need an entry.
+
+### Verify by running, not by reading
+
+Every claim in a pull request should come with the command that produced it. For a
+change to an indicator, a signal, or a cost model, include how many calls change
+result out of how many — run the old and the new implementation side by side over
+randomly generated OHLC series and count differences. A change that measures as a
+no-op is worth knowing about before merge, not after.

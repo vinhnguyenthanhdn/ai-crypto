@@ -1,0 +1,41 @@
+name: Challenge a result
+description: A strategy was rejected — or promoted — for the wrong reason
+labels: [methodology]
+body:
+  - type: input
+    id: target
+    attributes:
+      label: Which result
+      description: The entry in `docs/backtest-results.md` you are challenging.
+    validations:
+      required: true
+  - type: textarea
+    id: claim
+    attributes:
+      label: What you believe is wrong about it
+      description: >
+        A gate applied incorrectly, a cost assumption that does not match
+        `docs/execution-cost.md`, a look-ahead path, an episode count that treats
+        dependent tickets as independent bets.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence
+      description: >
+        The contract you ran, the commands, and the output. A rejection is a result —
+        overturning one needs a reproduction, not an argument.
+      render: shell
+    validations:
+      required: true
+  - type: checkboxes
+    id: discipline
+    attributes:
+      label: Selection discipline
+      options:
+        - label: Parameters were chosen on the training split only
+          required: true
+        - label: The contract was frozen in writing before any holdout was opened
+          required: true
+        - label: The result survives at least 2x the round-trip cost in `docs/execution-cost.md`
