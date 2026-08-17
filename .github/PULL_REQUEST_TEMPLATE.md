@@ -34,6 +34,8 @@ Files touched:
 
 - [ ] Every `scripts/test_*.py` passes: `for f in scripts/test_*.py; do PYTHONPATH=. .venv/bin/python "$f" || echo "FAIL $f"; done`
 - [ ] The new behaviour has a test, and that test fails on `main`
+- [ ] `CHANGELOG.md` has a line under `## [Unreleased]` saying what changes for someone
+      reading a result — not needed for a pure refactor, a typo or an internal test
 - [ ] No public function was removed or had its signature changed
 - [ ] No new dependency, or the PR says why one is needed
 - [ ] If any published number in `docs/` is now invalid, the PR says which
