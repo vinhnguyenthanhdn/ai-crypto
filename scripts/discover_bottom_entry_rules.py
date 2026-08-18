@@ -358,6 +358,7 @@ def _fit_method(name, feature_names, segments, *, fit_on_confirmed_bottoms=False
         "method": name,
         "fit_population": "retrospective_local_bottoms" if fit_on_confirmed_bottoms else "all_potential_bottoms",
         "features": feature_names,
+        "trials": len(leaf_stats),
         "selected_leaf_ids": eligible,
         "selected_rules": [paths[leaf_id] for leaf_id in eligible],
         "metrics": selected_metrics,
@@ -420,6 +421,7 @@ def _fit_ranker(name, feature_names, segments, *, fit_on_confirmed_bottoms=False
         "model": "random_forest_depth_6",
         "fit_population": "retrospective_local_bottoms" if fit_on_confirmed_bottoms else "all_potential_bottoms",
         "features": feature_names,
+        "trials": len(candidates),
         "selected_top_train_pct": top_pct,
         "probability_threshold": threshold,
         "feature_importance": importances,
@@ -516,21 +518,31 @@ def main():
         },
         "confirmed_bottom_methods": confirmed_methods,
         "methods": methods,
+        # Every place this script picks a "best of N": a confirmation window, a tree's
+        # eligible leaves, or a random forest's top-percentile threshold. None of these
+        # trials are filtered out above, so their sum is the full search size a reader
+        # would need to discount `selected_events` against.
+        "trials": (
+            len(CONFIRMATION_WINDOWS)
+            + sum(result["trials"] for result in confirmed_methods.values())
+            + sum(result["trials"] for result in methods.values())
+        ),
     }
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(output, ensure_ascii=False, indent=2), encoding="utf-8")
     print(json.dumps({
         "dataset": output["dataset"],
+        "trials": output["trials"],
         "segment_baselines": output["segment_baselines"],
         "confirmed_bottom_confirmation_sweep": confirmation_sweep,
         "confirmed_bottom_selected_window": output["confirmed_bottom_selected_window"],
         "confirmed_bottom_methods": {
-            name: {"rules": result.get("selected_rules", []), "metrics": result["metrics"]}
+            name: {"trials": result["trials"], "rules": result.get("selected_rules", []), "metrics": result["metrics"]}
             for name, result in confirmed_methods.items()
         },
         "methods": {
-            name: {"rules": result.get("selected_rules", []), "metrics": result["metrics"]}
+            name: {"trials": result["trials"], "rules": result.get("selected_rules", []), "metrics": result["metrics"]}
             for name, result in methods.items()
         },
     }, ensure_ascii=False, indent=2))
