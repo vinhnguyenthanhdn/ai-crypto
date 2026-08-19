@@ -11,7 +11,6 @@ yêu cầu.
 Đa khung thời gian (1m/5m/15m) dùng làm bộ lọc xác nhận: nếu các khung không
 đồng thuận hướng trend, phần điểm Trend/MACD bị giảm theo tỷ lệ đồng thuận.
 """
-import numpy as np
 import pandas as pd
 import ta
 

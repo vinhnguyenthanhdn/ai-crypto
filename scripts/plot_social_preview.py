@@ -1,4 +1,4 @@
-import json, glob, numpy as np, matplotlib
+import json, numpy as np, matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 

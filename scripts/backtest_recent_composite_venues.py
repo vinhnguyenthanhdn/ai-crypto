@@ -12,7 +12,6 @@ import numpy as np
 import pandas as pd
 
 from scripts.discover_multiasset_trend_portfolio import simulate
-from scripts.discover_trend_sentiment_champion import metrics
 from scripts.validate_composite_trend_champion import (
     composite_returns, portfolio_metrics,
 )
