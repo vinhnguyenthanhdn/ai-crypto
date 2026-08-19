@@ -10,6 +10,16 @@ reported unless it can be regenerated from the scripts in this repository.
 
 ## [Unreleased]
 
+### Added
+
+- A `trials` count in the JSON artifact and printed summary of the three search
+  scripts that did not carry one: `discover_bottom_entry_rules.py`,
+  `discover_fast_derivatives_gate.py`, `discover_fast_multivariate.py` (#6). With
+  29,373 configurations already searched across this repository and no multiple-testing
+  correction anywhere in `src/` or `scripts/`, a reader had no way to see how many
+  configurations a given result was selected from. No selection logic, gate, threshold
+  or metric changes — `git diff` against `src/` is empty.
+
 ### Fixed
 
 - CI compiled `scripts/` without ever importing them, so a broken import in a

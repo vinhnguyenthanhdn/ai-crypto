@@ -82,8 +82,8 @@ def main():
         for name in ('validation','test'): selected['metrics'][name]=_metrics(_run(frame,*splits[name],2,72,gate,BASE_COST),*splits[name])
         for name,bounds in splits.items(): stress[name]=_metrics(_run(frame,*bounds,2,72,gate,STRESS_COST),*bounds)
     passed=bool(selected and all(_gate(selected['metrics'][n]) for n in ('validation','test')) and all(_gate(stress[n]) for n in splits))
-    output={"passed":passed,"contract":{"timeframe":"1h","donchian_entry":40,"donchian_exit":10,"stop_atr":2,"max_hold_hours":72,"base_cost_pct":BASE_COST,"stress_cost_pct":STRESS_COST,"selection":"train_only"},"selected":selected,"cost_stress":stress,"train_eligible_count":len(eligible),"candidates":candidates}
-    Path(args.out).write_text(json.dumps(output,ensure_ascii=False,indent=2),encoding='utf-8'); print(json.dumps({k:output[k] for k in ('passed','train_eligible_count','selected','cost_stress')},ensure_ascii=False,indent=2))
+    output={"passed":passed,"contract":{"timeframe":"1h","donchian_entry":40,"donchian_exit":10,"stop_atr":2,"max_hold_hours":72,"base_cost_pct":BASE_COST,"stress_cost_pct":STRESS_COST,"selection":"train_only"},"selected":selected,"cost_stress":stress,"train_eligible_count":len(eligible),"trials":len(candidates),"candidates":candidates}
+    Path(args.out).write_text(json.dumps(output,ensure_ascii=False,indent=2),encoding='utf-8'); print(json.dumps({k:output[k] for k in ('passed','train_eligible_count','trials','selected','cost_stress')},ensure_ascii=False,indent=2))
 
 
 if __name__=='__main__': main()

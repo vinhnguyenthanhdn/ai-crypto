@@ -372,12 +372,12 @@ def main() -> None:
             "validation_end": str(validation_end), "end": str(end),
             "rows": len(usable), "period_rows": {key: len(value) for key, value in periods.items()},
         },
-        "selected": selected, "passed": passed, "candidates": candidates,
+        "selected": selected, "passed": passed, "trials": len(candidates), "candidates": candidates,
     }
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(output, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(json.dumps({"dataset": output["dataset"], "selected": selected, "passed": passed}, ensure_ascii=False, indent=2))
+    print(json.dumps({"dataset": output["dataset"], "selected": selected, "passed": passed, "trials": output["trials"]}, ensure_ascii=False, indent=2))
 
 
 if __name__ == "__main__":
