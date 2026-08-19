@@ -1,6 +1,5 @@
 """Trade-for-trade parity between frozen production core and research ledger."""
 import json
-from pathlib import Path
 
 import numpy as np
 import pandas as pd

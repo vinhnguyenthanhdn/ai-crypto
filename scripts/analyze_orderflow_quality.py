@@ -15,7 +15,6 @@ Usage:
 import argparse
 import sys
 from collections import defaultdict
-from datetime import datetime
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))

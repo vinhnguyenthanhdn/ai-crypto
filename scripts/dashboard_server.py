@@ -16,7 +16,6 @@ import math
 import plistlib
 import re
 import secrets
-import sqlite3
 import subprocess
 import sys
 import time
@@ -24,7 +23,7 @@ from datetime import datetime, timedelta, timezone
 from functools import wraps
 from pathlib import Path
 
-from flask import Flask, jsonify, redirect, request, send_from_directory, session
+from flask import Flask, jsonify, request, send_from_directory, session
 from werkzeug.security import check_password_hash, generate_password_hash
 
 BASE_DIR = Path(__file__).resolve().parent.parent
