@@ -29,6 +29,22 @@ jobs:
       - name: Compile all sources
         run: python -m compileall -q src scripts
 
+      - name: Reject test files outside scripts/
+        run: |
+          set -euo pipefail
+          misplaced=()
+          while IFS= read -r -d '' f; do
+            misplaced+=("${f#./}")
+          done < <(find . -type f -name 'test_*.py' ! -path './scripts/*' ! -path './.git/*' -print0)
+
+          if [ ${#misplaced[@]} -gt 0 ]; then
+            for f in "${misplaced[@]}"; do
+              echo "$f is named like a test but lives outside scripts/, so the regression suite never runs it. Move it to scripts/ or rename it."
+            done
+            exit 1
+          fi
+          echo "No test_*.py files found outside scripts/."
+
       - name: Regression suite (every scripts/test_*.py)
         env:
           PYTHONPATH: ${{ github.workspace }}
