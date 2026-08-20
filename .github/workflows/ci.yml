@@ -46,32 +46,7 @@ jobs:
           echo "No test_*.py files found outside scripts/."
 
       - name: Regression suite (every scripts/test_*.py)
-        env:
-          PYTHONPATH: ${{ github.workspace }}
-        run: |
-          set -euo pipefail
-          shopt -s nullglob
-          files=(scripts/test_*.py)
-          if [ ${#files[@]} -eq 0 ]; then
-            echo "No test file matched scripts/test_*.py — the suite must never be empty."
-            exit 1
-          fi
-          failed=()
-          for f in "${files[@]}"; do
-            echo "::group::$f"
-            if python "$f"; then
-              echo "PASS $f"
-            else
-              echo "FAIL $f"
-              failed+=("$f")
-            fi
-            echo "::endgroup::"
-          done
-          echo "Ran ${#files[@]} test file(s), ${#failed[@]} failed."
-          if [ ${#failed[@]} -gt 0 ]; then
-            printf 'FAILED: %s\n' "${failed[@]}"
-            exit 1
-          fi
+        run: bash scripts/run_suite.sh
 
       - name: Whitespace and conflict markers
         run: git diff --check "$(git rev-list --max-parents=0 HEAD | tail -1)"..HEAD
@@ -94,6 +69,32 @@ jobs:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: python scripts/scope_guard.py "$BASE_SHA" "$HEAD_SHA"
+
+  container:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build the image
+        run: docker build -t ai-crypto:ci .
+
+      - name: The image runs the suite with no network and no credentials
+        run: |
+          set -euo pipefail
+          docker run --rm --network none ai-crypto:ci | tee run.log
+          expected=$(ls scripts/test_*.py | wc -l | tr -d ' ')
+          grep -qx "Ran ${expected} test file(s), 0 failed." run.log
+
+      - name: The image does not run as root and cannot write its own code
+        run: |
+          set -euo pipefail
+          test "$(docker run --rm ai-crypto:ci id -u)" != "0"
+          ! docker run --rm ai-crypto:ci sh -c 'echo x >> /app/src/config.py'
+
+      - name: The image carries no configuration or data directory
+        run: |
+          set -euo pipefail
+          ! docker run --rm ai-crypto:ci sh -c 'test -e /app/config -o -e /app/data'
 
   guard-secrets:
     runs-on: ubuntu-latest

@@ -219,6 +219,38 @@ python3 -m src.run
 Scheduled paper trading runs under launchd on macOS. See `docs/decisions.md` for the
 scheduling contract.
 
+### Run it in a container
+
+```bash
+docker build -t ai-crypto .
+docker run --rm --network none ai-crypto
+```
+
+That prints the regression suite, `Ran 19 test file(s), 0 failed.`, from an image
+with no network, no credentials and no mounted volume. The same two commands run
+in CI on every push, and the CI step fails unless the count in that line matches
+the number of test files in the checkout — so an image that quietly stops running
+part of the suite is a red build, not a green one.
+
+The image pins the interpreter and the dependency set. It is the shortest way to
+reproduce a result on a machine that has no Python toolchain, and the shortest
+way to check that a dependency change did not break anything outside the two
+Python versions the matrix covers.
+
+**What the container does not do.** It has never been deployed anywhere. Live mode
+(`python3 -m src.run`) needs outbound network access to an exchange and a
+configuration file, and neither is baked into the image or exercised by CI — the
+container is verified offline only. There is no orchestration, no scheduler and
+no published image; scheduled paper trading still runs under launchd on the
+author's machine, as described above.
+
+Three properties CI asserts about the image, each as a separate step, because a
+build that succeeds says nothing about what it produced:
+
+- it runs the full suite with `--network none`, and the count matches the checkout
+- it does not run as root, and cannot write to its own source tree
+- it contains no `config/` and no `data/` directory
+
 ## Documentation
 
 | File | Contents |

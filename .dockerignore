@@ -1,0 +1,14 @@
+# Deny by default, then name what the image needs. An allow-list is the only
+# form of this file that cannot leak a new secret the day someone adds one:
+# with a deny-list, `config/paper.env` is safe and the next credential file is
+# not.
+*
+
+!requirements.txt
+!src/**
+!scripts/**
+
+# Even inside what is allowed, never the caches or local state.
+**/__pycache__
+**/*.pyc
+**/.env
