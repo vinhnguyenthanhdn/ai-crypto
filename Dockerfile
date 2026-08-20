@@ -29,16 +29,18 @@ RUN pip install --no-cache-dir --upgrade pip \
 COPY src ./src
 COPY scripts ./scripts
 
-# Nothing here needs to write to the image or to run as root. A container that
-# cannot write its own code is one fewer thing to reason about when the same
-# image is handed to someone else.
-# An empty, writable config/. The image ships no configuration — the dashboard
-# generates its own session secret on first import, and it needs somewhere to
-# put it. Empty and writable is a different claim from absent, and CI checks the
-# one that is true.
+# Nothing here needs to run as root or to write to its own source. Only config/
+# is handed to the runtime user: the image ships no configuration, but the
+# dashboard generates its own session secret on first import and needs somewhere
+# to put it. Empty and writable is a different claim from absent, and CI checks
+# the one that is true.
+#
+# Note the scope of the chown. An earlier version chowned all of /app, which
+# handed the source tree to the same user and quietly undid the property the
+# non-root user was there for — CI caught it by trying the write.
 RUN mkdir -p /app/config \
  && useradd --create-home --uid 10001 runner \
- && chown -R runner:runner /app
+ && chown -R runner:runner /app/config
 USER runner
 
 # The default command is the thing that provably works with no network, no
