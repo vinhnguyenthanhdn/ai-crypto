@@ -1,5 +1,10 @@
 """Regression tests for multi-asset funding and cost accounting."""
+import sys
+from pathlib import Path
+
 import pandas as pd
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from scripts.discover_multiasset_trend_portfolio import (
     close_trade, funding_allows, market_breadth,

@@ -1,4 +1,9 @@
 """Deterministic regression tests for the aggregate-L2 maker fill model."""
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
 from src.backtest.l2_maker import AggregateBook, PassiveOrder, signed_markout_bps
 
 
