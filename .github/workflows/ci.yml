@@ -91,10 +91,11 @@ jobs:
           test "$(docker run --rm ai-crypto:ci id -u)" != "0"
           ! docker run --rm ai-crypto:ci sh -c 'echo x >> /app/src/config.py'
 
-      - name: The image carries no configuration or data directory
+      - name: The image carries no configuration and no data
         run: |
           set -euo pipefail
-          ! docker run --rm ai-crypto:ci sh -c 'test -e /app/config -o -e /app/data'
+          test -z "$(docker run --rm ai-crypto:ci ls -A /app/config)"
+          ! docker run --rm ai-crypto:ci sh -c 'test -e /app/data'
 
   guard-secrets:
     runs-on: ubuntu-latest

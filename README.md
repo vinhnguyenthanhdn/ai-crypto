@@ -249,7 +249,13 @@ build that succeeds says nothing about what it produced:
 
 - it runs the full suite with `--network none`, and the count matches the checkout
 - it does not run as root, and cannot write to its own source tree
-- it contains no `config/` and no `data/` directory
+- `/app/config` is empty and there is no `/app/data`
+
+The container has already paid for itself once: it found that `lightgbm` fails to
+import on any minimal base image, because it links against the OpenMP runtime and
+`python:3.12-slim` does not carry it. Both matrix legs were green — the GitHub
+runner image happens to ship `libgomp1` — so the failure was invisible until
+something ran the code somewhere else.
 
 ## Documentation
 
