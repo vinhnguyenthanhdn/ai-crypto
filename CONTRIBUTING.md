@@ -130,6 +130,10 @@ no workflow change. Two things it needs to run standalone: the repository root o
 `PYTHONPATH` (the loop above sets it, as does CI), and a `__main__` block that calls
 each test function.
 
+Test files must live in `scripts/` and be named `test_*.py`; CI rejects files with
+that name outside `scripts/` instead of running them. Move such a file to `scripts/`
+or rename it. The `tests/` directory is reserved for fixtures.
+
 Tests that need `data/backtests/` artifacts cannot run on a clean checkout, because
 those artifacts are never committed. Such a test checks for its inputs and prints
 `SKIP` instead of failing — locally, where the artifacts exist, it runs in full.
