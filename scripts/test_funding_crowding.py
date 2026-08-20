@@ -1,5 +1,10 @@
 """Deterministic tests for the frozen funding-crowding production core."""
+import sys
+from pathlib import Path
+
 import pandas as pd
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from src.engine import funding_crowding as strategy
 
