@@ -12,6 +12,16 @@ reported unless it can be regenerated from the scripts in this repository.
 
 ### Added
 
+- A `Dockerfile` and a `container` CI job. The image pins the interpreter and the
+  dependency set and runs the regression suite offline; CI builds it on every push
+  and asserts three things about the result — the suite count matches the checkout
+  with `--network none`, the container is not root and cannot write its own source,
+  and no `config/` or `data/` directory is present. The image has never been
+  deployed and live mode is not exercised by it; README says so in the same place
+  it says how to run it.
+- `scripts/run_suite.sh`, one collection loop shared by CI and the image instead of
+  a copy in each. Collection stays a glob and an empty glob is still a failure.
+
 - A `trials` count in the JSON artifact and printed summary of the three search
   scripts that did not carry one: `discover_bottom_entry_rules.py`,
   `discover_fast_derivatives_gate.py`, `discover_fast_multivariate.py` (#6). With
