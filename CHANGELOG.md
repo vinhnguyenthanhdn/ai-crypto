@@ -22,6 +22,23 @@ reported unless it can be regenerated from the scripts in this repository.
 - `scripts/run_suite.sh`, one collection loop shared by CI and the image instead of
   a copy in each. Collection stays a glob and an empty glob is still a failure.
 
+- A `compose.yaml` and a `compose` CI job, which move the claim from "the image
+  builds" to "the service comes up". The dashboard runs with a container
+  healthcheck against `/api/session`, the one route that answers before login;
+  `docker compose up --wait` fails the build if it never reports healthy. CI then
+  confirms the verdict from outside the container — `docker inspect` reports
+  `healthy` and the published port returns the expected body — and checks that the
+  session secret lands in the named volume rather than in the working tree.
+  Nothing here is deployed anywhere and Flask's development server is still a
+  development server; README states the boundary.
+
+### Changed
+
+- `scripts/dashboard_server.py` reads its bind address and port from
+  `DASHBOARD_HOST` and `DASHBOARD_PORT`. Defaults are unchanged (`127.0.0.1:8787`);
+  a container needs `0.0.0.0` because loopback inside a container is not the host's
+  loopback, and a published port would otherwise reach nothing.
+
 - A `trials` count in the JSON artifact and printed summary of the three search
   scripts that did not carry one: `discover_bottom_entry_rules.py`,
   `discover_fast_derivatives_gate.py`, `discover_fast_multivariate.py` (#6). With

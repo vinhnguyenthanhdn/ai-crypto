@@ -624,6 +624,14 @@ def index():
 
 
 if __name__ == "__main__":
-    port = 8787
-    print(f"[dashboard] http://127.0.0.1:{port}")
-    app.run(host="127.0.0.1", port=port, debug=False)
+    # The default stays loopback-only: this server is reachable from outside the
+    # machine through a tunnel that dials out, never by binding a public
+    # interface. A container is the one case where 127.0.0.1 is wrong — it means
+    # the loopback *inside* the container, so a published port reaches nothing.
+    # compose.yaml sets DASHBOARD_HOST=0.0.0.0 and publishes the port on the
+    # host's loopback instead, which keeps the same reachability with the bind
+    # moved one layer out.
+    host = os.environ.get("DASHBOARD_HOST", "127.0.0.1")
+    port = int(os.environ.get("DASHBOARD_PORT", "8787"))
+    print(f"[dashboard] http://{host}:{port}")
+    app.run(host=host, port=port, debug=False)

@@ -97,6 +97,46 @@ jobs:
           test -z "$(docker run --rm ai-crypto:ci ls -A /app/config)"
           ! docker run --rm ai-crypto:ci sh -c 'test -e /app/data'
 
+  compose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: The service comes up and reports healthy
+        run: |
+          set -euo pipefail
+          # --wait blocks until every service with a healthcheck is healthy and
+          # exits non-zero if one never gets there, so the gate is the runtime's
+          # verdict rather than a sleep followed by a hopeful curl.
+          docker compose up -d --wait --wait-timeout 180
+
+      - name: The runtime agrees it is healthy, and it answers on the published port
+        run: |
+          set -euo pipefail
+          cid=$(docker compose ps -q dashboard)
+          state=$(docker inspect -f '{{.State.Health.Status}}' "$cid")
+          echo "health=$state"
+          test "$state" = "healthy"
+
+          # Independent of the probe: reach it the way a user would, from
+          # outside the container, through the published port.
+          body=$(curl -fsS --max-time 10 http://127.0.0.1:8787/api/session)
+          echo "body=$body"
+          test "$body" = '{"authed":false}'
+
+      - name: The secret lives in the volume, not in the source tree
+        run: |
+          set -euo pipefail
+          docker compose exec -T dashboard test -s /app/config/dashboard_secret.json
+          # The same path on the checkout must stay empty: a mounted volume that
+          # silently resolved to a bind mount would write a credential into the
+          # working tree, and guard-secrets only sees what is committed.
+          test ! -e config/dashboard_secret.json
+
+      - name: Tear down
+        if: always()
+        run: docker compose down -v --remove-orphans
+
   guard-secrets:
     runs-on: ubuntu-latest
     steps:

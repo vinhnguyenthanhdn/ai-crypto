@@ -257,6 +257,41 @@ import on any minimal base image, because it links against the OpenMP runtime an
 runner image happens to ship `libgomp1` — so the failure was invisible until
 something ran the code somewhere else.
 
+### Run it with compose
+
+```bash
+docker compose up -d --wait
+curl -fsS http://127.0.0.1:8787/api/session   # {"authed":false}
+docker compose down -v
+```
+
+Building an image and starting a service are different claims, and the steps
+above check the second one. `--wait` blocks until the container runtime reports
+the service healthy and exits non-zero if it never does, so "it came up" is a
+verdict from the runtime rather than from a person reading logs. The probe is
+`/api/session`, the one route that answers before anyone logs in: a 200 there
+means the module imported, the session secret exists, and Flask is serving.
+
+CI runs the same three commands on every push and then checks the result from
+outside the container as well — `docker inspect` must report `healthy`, and the
+published port must return that exact body. A service that starts and then
+fails its probe is a red build.
+
+Two details worth knowing before running it locally:
+
+- The port is published on `127.0.0.1` only. The server's own default bind is
+  loopback as well; remote access is meant to go through a tunnel that dials
+  out, not through a port opened on a public interface.
+- `config/` is a named volume. The dashboard mints a session secret on first
+  import and prints a one-time password; without the volume that happens again
+  on every recreate, and the secret would land in the source tree.
+
+**What compose does not claim.** Flask's built-in server is a development
+server, and nothing here has been deployed to a hosted account — there is no
+image published, no infrastructure defined and no load ever put through it.
+What is verified is the narrow thing stated above: the service starts, stays up,
+and answers.
+
 ## Documentation
 
 | File | Contents |

@@ -1,0 +1,58 @@
+# Bring the dashboard up as a service and let something other than a human
+# decide whether it came up.
+#
+# The image already proves the strategy core *builds* and that its suite runs
+# with no network and no credentials. That is a claim about an artifact. This
+# file is the next claim down: the long-running half of this repository starts,
+# binds a port, and answers on it — checked by the container runtime, not by a
+# person watching logs scroll.
+#
+# What this does not claim: nothing here has been deployed to a hosted account,
+# and Flask's built-in server is a development server. See README, "Run it with
+# compose", for the boundary.
+
+services:
+  dashboard:
+    build:
+      context: .
+    image: ai-crypto:compose
+    command: ["python", "scripts/dashboard_server.py"]
+    environment:
+      # Inside a container 127.0.0.1 is the container's own loopback, so a
+      # published port would reach nothing. The bind moves out one layer and
+      # the host side stays loopback-only, below.
+      DASHBOARD_HOST: "0.0.0.0"
+      DASHBOARD_PORT: "8787"
+    ports:
+      # Host loopback only. Publishing 8787:8787 would put a password-protected
+      # but internet-facing service on every interface of the host, which is
+      # not what the default bind was chosen for.
+      - "127.0.0.1:8787:8787"
+    volumes:
+      # The image ships an empty, writable config/ and the dashboard mints a
+      # session secret into it on first import. Without a volume that secret is
+      # regenerated on every recreate, which logs a new password each time and
+      # invalidates every open session. A named volume also keeps the secret out
+      # of the source tree, where guard-secrets would reject it.
+      - dashboard-config:/app/config
+    healthcheck:
+      # /api/session is the only route that answers before anyone logs in, which
+      # is exactly the property a liveness probe needs: 200 here means the app
+      # imported, the secret exists, and Flask is serving. The image has no curl
+      # or wget, so the probe is the interpreter that is already there.
+      test:
+        - "CMD"
+        - "python"
+        - "-c"
+        - |
+          import sys, urllib.request
+          sys.exit(0 if urllib.request.urlopen(
+              "http://127.0.0.1:8787/api/session", timeout=3).status == 200 else 1)
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 5s
+    restart: "no"
+
+volumes:
+  dashboard-config:
