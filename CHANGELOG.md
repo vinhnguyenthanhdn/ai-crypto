@@ -32,6 +32,15 @@ reported unless it can be regenerated from the scripts in this repository.
   Nothing here is deployed anywhere and Flask's development server is still a
   development server; README states the boundary.
 
+- An `Operations` section in the README: what is observable while this runs, with
+  what, and what to read first when it stops. Liveness is the `run_health`
+  heartbeat and the separately scheduled `scripts/health_check.py`; the stops are
+  `DAILY_LOSS_LIMIT_PCT`, `MAX_DRAWDOWN_PCT` and the deliberately asymmetric kill
+  switch, which the engine arms by itself and only a human disarms. It also names
+  a gap rather than papering over it: `config.LOG_PATH` is consumed by nothing,
+  and the scheduler's `StandardOutPath` and the dashboard's hard-coded log path
+  are two further names for the same concern.
+
 ### Changed
 
 - `scripts/dashboard_server.py` reads its bind address and port from

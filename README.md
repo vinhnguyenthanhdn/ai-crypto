@@ -292,6 +292,73 @@ image published, no infrastructure defined and no load ever put through it.
 What is verified is the narrow thing stated above: the service starts, stays up,
 and answers.
 
+## Operations
+
+What can be observed while this runs, with what, and what to read first when it
+stops. Everything below points at something in this repository; the last
+subsection is the part that is missing, stated as missing.
+
+### Liveness
+
+`src/run.py` writes `run_health(last_run_at, last_run_ok)` at the end of every
+cycle and again when a cycle raises. That row is the heartbeat, and it is the
+only thing that distinguishes "made no trades" from "was not running".
+
+`scripts/health_check.py` reads it and alerts over Telegram when the heartbeat
+is older than `HEALTHCHECK_MAX_STALE_MINUTES` (default 30). Two properties of it
+are deliberate:
+
+- **It is scheduled separately from the engine.** A check that runs inside the
+  process it watches cannot report that the process is gone, which is the one
+  failure it exists for.
+- **It is edge-triggered, except when it cannot be.** Alerts fire on the
+  transition into unhealthy and once more on recovery, so a long outage is not a
+  stream of messages. If the database itself cannot be read, dedupe state lives
+  in that same unreadable database — so it alerts on *every* run instead of
+  going quiet. Losing the ability to remember is not a reason to stop speaking.
+
+### Stops
+
+| Control | Default | Behaviour |
+|---|---|---|
+| `DAILY_LOSS_LIMIT_PCT` | 5 | Daily realized-loss limit, tracked in `daily_pnl` |
+| `MAX_DRAWDOWN_PCT` | 15 | On breach `src/run.py` turns the kill switch **on** by itself |
+| `RUN_LOCK_STALE_MINUTES` | 5 | `run_lock` heartbeat age after which a lock is treated as abandoned |
+
+The kill switch is asymmetric on purpose: the system arms it automatically and
+never disarms it automatically. Clearing it is `python scripts/kill_switch.py off`,
+a human action, because the condition that tripped it does not expire on its own.
+`kill_switch.py status` reports the current state and the recorded reason.
+
+### What to read, in order
+
+1. `python scripts/kill_switch.py status` — if it is on, the reason string says
+   why and nothing further will trade until it is cleared.
+2. `run_health.last_run_at` — via `scripts/health_check.py` or the dashboard's
+   `/api/status`. This separates a dead scheduler from a running engine that is
+   declining to act.
+3. `event_log` — `(ts, trade_id, type, payload)`, indexed on `(type, ts)`. This
+   is the per-decision trail; `signal_log` and `equity_ledger` hold the scored
+   candidates and the balance history behind it.
+4. The scheduler's own stdout, for anything that failed before Python could
+   record it.
+
+### Where the logs are not
+
+This is the honest gap in the list above. `config.LOG_PATH` exists and defaults
+to `logs/run.log`, and **nothing reads it** — no module in `src/` or `scripts/`
+consumes that value. Logs land wherever the scheduler redirects stdout, which
+for the committed launchd job is `StandardOutPath` in its plist, and the
+dashboard's log view reads a third, hard-coded path
+(`logs/run_paper_launchd.log`) that is not derived from either. Three names for
+one concern, with no single place that decides it.
+
+Nothing here is centralized, aggregated or retained on a schedule: there is no
+log shipping, no metrics backend, no dashboards other than the local Flask app,
+and no alerting channel besides Telegram. Rotation is whatever the operating
+system's scheduler does. Read this section as the observability that exists, not
+as an observability design.
+
 ## Documentation
 
 | File | Contents |
