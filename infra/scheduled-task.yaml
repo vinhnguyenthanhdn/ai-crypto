@@ -1,0 +1,271 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Description: >-
+  The infrastructure a scheduled run of this repository's container would need:
+  an EventBridge schedule that starts one Fargate task, logs it, and gives it
+  somewhere durable to keep the SQLite state file. Validated in CI. Never
+  deployed to an account — see README, "Infrastructure", for what that means.
+
+Parameters:
+  ImageUri:
+    Type: String
+    Description: >-
+      Fully qualified image URI, e.g. <account>.dkr.ecr.<region>.amazonaws.com/ai-crypto:<tag>.
+      A tag rather than a moving one: a scheduled task that silently changes what
+      it runs is not reproducible, which is the property the image exists for.
+
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: VPC holding the two subnets below.
+
+  SubnetAId:
+    Type: AWS::EC2::Subnet::Id
+    Description: First subnet. Needs a route to the internet for the exchange API and the image pull.
+
+  SubnetBId:
+    Type: AWS::EC2::Subnet::Id
+    Description: Second subnet, in a different availability zone. EFS requires a mount target per AZ.
+
+  ScheduleExpression:
+    Type: String
+    Default: "rate(5 minutes)"
+    Description: EventBridge Scheduler expression. The local launchd job runs on the same cadence.
+
+  TaskCommand:
+    Type: String
+    Default: "python,-m,src.run"
+    Description: >-
+      Comma-separated command override. The image default runs the regression
+      suite, which is the part proven to work with no network and no credentials.
+
+  LogRetentionDays:
+    Type: Number
+    Default: 30
+    AllowedValues: [1, 3, 5, 7, 14, 30, 60, 90, 180, 365]
+    Description: Nothing here ships logs anywhere else, so retention is the whole retention policy.
+
+Resources:
+  LogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/ecs/${AWS::StackName}"
+      RetentionInDays: !Ref LogRetentionDays
+
+  Cluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: !Ref AWS::StackName
+
+  # Pulls the image and writes the log stream. This is the only role with
+  # managed policies attached; the task's own role below has none, because the
+  # container calls no AWS API.
+  ExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+
+  # Deliberately empty. The engine talks to an exchange over HTTPS and to a file
+  # on disk; it has no reason to hold AWS permissions, and an empty role makes
+  # that reviewable instead of assumed.
+  TaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+
+  TaskSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Outbound only. The task dials the exchange; nothing dials the task.
+      VpcId: !Ref VpcId
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+          Description: Exchange API, image pull, log delivery.
+
+  FileSystemSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: NFS from the task only.
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 2049
+          ToPort: 2049
+          SourceSecurityGroupId: !Ref TaskSecurityGroup
+          Description: EFS mount from the scheduled task.
+
+  # Fargate storage does not survive the task, and this engine's state is a
+  # SQLite file: position state, the equity ledger, the run heartbeat and the
+  # kill switch all live in it. Without a durable volume every run would start
+  # believing nothing had ever happened, including that the kill switch is off.
+  StateFileSystem:
+    Type: AWS::EFS::FileSystem
+    Properties:
+      Encrypted: true
+      PerformanceMode: generalPurpose
+      FileSystemTags:
+        - Key: Name
+          Value: !Sub "${AWS::StackName}-state"
+
+  # The image runs as uid 10001 and does not run as root, so the access point
+  # owns the directory as that same uid. A mismatch here is the ordinary way a
+  # non-root container ends up unable to write its own volume.
+  StateAccessPoint:
+    Type: AWS::EFS::AccessPoint
+    Properties:
+      FileSystemId: !Ref StateFileSystem
+      PosixUser:
+        Uid: "10001"
+        Gid: "10001"
+      RootDirectory:
+        Path: /state
+        CreationInfo:
+          OwnerUid: "10001"
+          OwnerGid: "10001"
+          Permissions: "0755"
+
+  MountTargetA:
+    Type: AWS::EFS::MountTarget
+    Properties:
+      FileSystemId: !Ref StateFileSystem
+      SubnetId: !Ref SubnetAId
+      SecurityGroups:
+        - !Ref FileSystemSecurityGroup
+
+  MountTargetB:
+    Type: AWS::EFS::MountTarget
+    Properties:
+      FileSystemId: !Ref StateFileSystem
+      SubnetId: !Ref SubnetBId
+      SecurityGroups:
+        - !Ref FileSystemSecurityGroup
+
+  TaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Ref AWS::StackName
+      RequiresCompatibilities:
+        - FARGATE
+      NetworkMode: awsvpc
+      Cpu: "512"
+      Memory: "1024"
+      ExecutionRoleArn: !GetAtt ExecutionRole.Arn
+      TaskRoleArn: !GetAtt TaskRole.Arn
+      Volumes:
+        - Name: state
+          EFSVolumeConfiguration:
+            FilesystemId: !Ref StateFileSystem
+            TransitEncryption: ENABLED
+            AuthorizationConfig:
+              AccessPointId: !Ref StateAccessPoint
+              IAM: DISABLED
+      ContainerDefinitions:
+        - Name: engine
+          Image: !Ref ImageUri
+          Essential: true
+          Command: !Split [",", !Ref TaskCommand]
+          Environment:
+            # The state file goes on the mounted volume, not in the layer that
+            # disappears with the task.
+            - Name: DB_PATH
+              Value: /state/state_paper.db
+          MountPoints:
+            - SourceVolume: state
+              ContainerPath: /state
+              ReadOnly: false
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref LogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: engine
+
+  SchedulerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: scheduler.amazonaws.com
+            Action: sts:AssumeRole
+            Condition:
+              StringEquals:
+                aws:SourceAccount: !Ref AWS::AccountId
+      Policies:
+        - PolicyName: run-the-task
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: ecs:RunTask
+                Resource: !Ref TaskDefinition
+                Condition:
+                  ArnEquals:
+                    ecs:cluster: !GetAtt Cluster.Arn
+              - Effect: Allow
+                Action: iam:PassRole
+                Resource:
+                  - !GetAtt ExecutionRole.Arn
+                  - !GetAtt TaskRole.Arn
+                Condition:
+                  StringEquals:
+                    iam:PassedToService: ecs-tasks.amazonaws.com
+
+  Schedule:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      Name: !Sub "${AWS::StackName}-run"
+      ScheduleExpression: !Ref ScheduleExpression
+      FlexibleTimeWindow:
+        # The engine takes a run lock and treats a stale one as abandoned after
+        # RUN_LOCK_STALE_MINUTES. Letting the scheduler drift would widen the
+        # window in which two runs overlap, so it does not get to drift.
+        Mode: "OFF"
+      Target:
+        Arn: !GetAtt Cluster.Arn
+        RoleArn: !GetAtt SchedulerRole.Arn
+        # One attempt. A retried run of a trading engine is a second decision
+        # made on stale prices, not a repeat of the first one.
+        RetryPolicy:
+          MaximumRetryAttempts: 0
+        EcsParameters:
+          TaskDefinitionArn: !Ref TaskDefinition
+          LaunchType: FARGATE
+          TaskCount: 1
+          NetworkConfiguration:
+            AwsvpcConfiguration:
+              AssignPublicIp: ENABLED
+              Subnets:
+                - !Ref SubnetAId
+                - !Ref SubnetBId
+              SecurityGroups:
+                - !Ref TaskSecurityGroup
+
+Outputs:
+  LogGroupName:
+    Description: Where a run's stdout goes. Nothing forwards it anywhere else.
+    Value: !Ref LogGroup
+
+  StateFileSystemId:
+    Description: EFS file system holding the SQLite state file.
+    Value: !Ref StateFileSystem
+
+  TaskDefinitionArn:
+    Description: The exact task revision the schedule starts.
+    Value: !Ref TaskDefinition
