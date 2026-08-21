@@ -292,6 +292,43 @@ image published, no infrastructure defined and no load ever put through it.
 What is verified is the narrow thing stated above: the service starts, stays up,
 and answers.
 
+### Infrastructure
+
+`infra/scheduled-task.yaml` declares what a scheduled run of the container would
+need on AWS: an EventBridge schedule starting one Fargate task, a log group, and
+an EFS volume for the SQLite state file. CI lints every template under `infra/`
+on each push.
+
+Three choices in it are decisions rather than defaults:
+
+- **A durable volume, not ephemeral task storage.** Position state, the equity
+  ledger, the run heartbeat and the kill switch all live in one SQLite file. On
+  Fargate's own storage every run would start believing nothing had happened —
+  including that the kill switch is off.
+- **The access point owns its directory as uid 10001**, the uid the image runs
+  as. A mismatch there is the ordinary way a non-root container ends up unable
+  to write the volume it was given.
+- **No retries, no flexible time window.** A retried run of a trading engine is
+  a second decision taken on stale prices, and the engine's run lock treats a
+  stale lock as abandoned after `RUN_LOCK_STALE_MINUTES`, so schedule drift
+  widens the window where two runs overlap.
+
+The task role is deliberately empty: the engine talks to an exchange over HTTPS
+and to a file, and holds no AWS permissions.
+
+**What "validated" covers, and what it does not.** This template has **never
+been deployed to an account**. No stack has been created, nothing has been
+billed, and no value here has been confirmed against a live API. What CI proves
+is that the template is structurally valid CloudFormation — and it proves the
+linter can fail, by feeding it a broken copy on every run and requiring the
+rejection.
+
+That boundary is narrower than it looks, and the repository would rather name it
+than imply otherwise: changing the access point's uid from 10001 to 0 — which
+would break the non-root container at runtime — passes `cfn-lint` cleanly. A
+structural gate catches structural errors. Nothing here checks that the stack
+does what the comments say it does.
+
 ## Operations
 
 What can be observed while this runs, with what, and what to read first when it

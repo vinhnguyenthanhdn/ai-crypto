@@ -32,6 +32,17 @@ reported unless it can be regenerated from the scripts in this repository.
   Nothing here is deployed anywhere and Flask's development server is still a
   development server; README states the boundary.
 
+- `infra/scheduled-task.yaml` and an `iac` CI job. The template declares what a
+  scheduled run of the container would need on AWS — an EventBridge schedule
+  starting one Fargate task, a log group, and an EFS volume for the SQLite state
+  file, whose access point owns its directory as the same uid 10001 the image
+  runs as. The job lints every tracked template under `infra/` (a glob, with an
+  empty result treated as failure) and then requires `cfn-lint` to reject a
+  deliberately broken copy, so a green lint is not taken on trust. The template
+  has never been deployed to an account, and README states what a structural gate
+  does not check: a uid change that would break the non-root container at runtime
+  lints clean.
+
 - An `Operations` section in the README: what is observable while this runs, with
   what, and what to read first when it stops. Liveness is the `run_health`
   heartbeat and the separately scheduled `scripts/health_check.py`; the stops are

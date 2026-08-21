@@ -137,6 +137,46 @@ jobs:
         if: always()
         run: docker compose down -v --remove-orphans
 
+  iac:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install cfn-lint
+        run: pip install cfn-lint
+
+      - name: Every template under infra/ validates
+        run: |
+          set -euo pipefail
+          # Collection is a glob over what is tracked, not a list of filenames,
+          # and an empty result is a failure — a step that lints nothing must
+          # not be able to report success.
+          mapfile -t templates < <(git ls-files 'infra/*.yaml' 'infra/*.yml')
+          if [ ${#templates[@]} -eq 0 ]; then
+            echo "No template matched infra/*.y*ml — this step would be a no-op."
+            exit 1
+          fi
+          printf 'Linting %s\n' "${templates[@]}"
+          cfn-lint "${templates[@]}"
+
+      - name: The linter rejects a template it should reject
+        run: |
+          set -euo pipefail
+          # A green lint means nothing unless the linter can go red. Break one
+          # reference and require the failure, on every run rather than once.
+          broken="$RUNNER_TEMP/broken.yaml"
+          sed 's/!GetAtt Cluster.Arn/!GetAtt NoSuchCluster.Arn/' \
+            infra/scheduled-task.yaml > "$broken"
+          if cfn-lint "$broken"; then
+            echo "cfn-lint accepted a dangling reference, so the step above proves nothing."
+            exit 1
+          fi
+          echo "cfn-lint rejects a dangling reference, as required."
+
   guard-secrets:
     runs-on: ubuntu-latest
     steps:
