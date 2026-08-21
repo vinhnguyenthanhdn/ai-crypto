@@ -22,7 +22,7 @@ services:
       # published port would reach nothing. The bind moves out one layer and
       # the host side stays loopback-only, below.
       DASHBOARD_HOST: "0.0.0.0"
-      DASHBOARD_PORT: "8787"
+      DASHBOARD_PORT: "8788"
     ports:
       # Host loopback only. Publishing 8787:8787 would put a password-protected
       # but internet-facing service on every interface of the host, which is
