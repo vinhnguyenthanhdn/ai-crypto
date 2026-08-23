@@ -447,6 +447,11 @@ useful to you. (What it *found* is a separate matter — see
 - **Scheduling is macOS-only.** The scheduler is a launchd agent, and the installer
   under `scripts/` still contains absolute paths from the author's machine, so it
   needs editing before it runs anywhere else. There is no Linux or Windows equivalent.
+  CI bootstraps the committed plist into launchd on a macOS runner and reads the job
+  back from launchd — program, working directory, log paths and the calendar interval —
+  with only that author path prefix retargeted. What that does not prove: the observer
+  has never been started by launchd anywhere but the author's machine, and the gate
+  removes `RunAtLoad` rather than letting a CI runner start it.
 - **The dashboard is local-only** — it binds `127.0.0.1` and is not meant to be
   exposed.
 - **Python 3.10 and 3.12 are what CI proves.** Other versions may work; nothing
