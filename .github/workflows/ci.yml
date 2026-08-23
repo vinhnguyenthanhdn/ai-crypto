@@ -26,8 +26,21 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      # Every tracked .py, not two directory names. `src scripts` left
+      # tests/fixtures/composite_forward/generate_fixtures.py — the script that
+      # regenerates a committed fixture — compiled by nothing, and a syntax
+      # error in it passed this step. A scan that finds nothing is broken, not
+      # clean, so the count is asserted too.
       - name: Compile all sources
-        run: python -m compileall -q src scripts
+        run: |
+          set -euo pipefail
+          mapfile -t sources < <(git ls-files '*.py')
+          if [ "${#sources[@]}" -eq 0 ]; then
+            echo "No tracked .py file matched — this step would be a no-op."
+            exit 1
+          fi
+          python -m compileall -q "${sources[@]}"
+          echo "Compiled ${#sources[@]} tracked Python file(s)."
 
       - name: Reject test files outside scripts/
         run: |
