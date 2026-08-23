@@ -252,11 +252,15 @@ jobs:
 
           # Ask launchd, not the file. plutil only proves the XML parses.
           launchctl print "gui/$uid/$LABEL" > loaded.txt
+          echo "--- launchd's own view of the job:"
+          cat loaded.txt
           grep -q "path = $agent" loaded.txt
           grep -q "$root/scripts/run_funding_crowding_forward_paper.sh" loaded.txt
-          grep -qi 'runs = \|state = ' loaded.txt
-          echo "--- launchd's own view of the job:"
-          sed -n '1,25p' loaded.txt
+          grep -q "working directory = $root" loaded.txt
+          grep -q "$root/logs/funding_crowding_forward.log" loaded.txt
+          # The schedule is the whole claim. A job launchd accepted but did not
+          # register a calendar interval for would never fire.
+          grep -qi 'calendarinterval\|next fire' loaded.txt
 
           launchctl bootout "gui/$uid/$LABEL"
           if launchctl print "gui/$uid/$LABEL" >/dev/null 2>&1; then
