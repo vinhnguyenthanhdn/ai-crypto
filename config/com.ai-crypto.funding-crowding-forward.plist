@@ -13,11 +13,6 @@
   <string>/Users/administrator/Library/Application Support/ai-crypto-funding-forward</string>
   <key>RunAtLoad</key>
   <true/>
-  <key>StartCalendarInterval</key>
-  <dict>
-    <key>Minute</key>
-    <integer>5</integer>
-  </dict>
   <key>ProcessType</key>
   <string>Background</string>
   <key>StandardOutPath</key>
