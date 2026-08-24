@@ -1,5 +1,10 @@
 """Deterministic accounting tests for BTC Spot forward Paper helpers."""
-from scripts.run_btc_spot_trend_forward_paper import advance_portfolio
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from scripts.run_btc_spot_trend_forward_paper import advance_portfolio  # noqa: E402
 
 
 def main() -> None:

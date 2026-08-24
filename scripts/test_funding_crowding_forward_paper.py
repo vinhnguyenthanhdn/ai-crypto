@@ -1,7 +1,12 @@
 """Deterministic accounting tests for fresh-forward Paper helpers."""
+import sys
+from pathlib import Path
+
 import pandas as pd
 
-from scripts.run_funding_crowding_forward_paper import realized_funding
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from scripts.run_funding_crowding_forward_paper import realized_funding  # noqa: E402
 
 
 def test_realized_funding_excludes_entry_and_includes_exit_settlement():
