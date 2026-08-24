@@ -11,13 +11,21 @@
 # The interpreter is ${PYTHON:-python}: CI and the image both put the right one
 # on PATH, and a checkout with a .venv can pass PYTHON=.venv/bin/python.
 #
+# Each file runs with PYTHONPATH removed, not with the repository root exported
+# into it. Exporting it was a crutch: 17 of the 19 test files already insert the
+# repository root themselves, and the two that did not could only ever run
+# through this script — `python scripts/test_x.py`, the invocation a contributor
+# reaches for first, died on `No module named 'scripts'`. Stripping the variable
+# rather than leaving it alone also makes the run independent of whatever the
+# caller's environment happens to export, so the suite cannot pass here for a
+# reason that will not hold on the next machine.
+#
 # Group markers are emitted only under GitHub Actions, so local and container
 # output stays readable.
 set -euo pipefail
 shopt -s nullglob
 
 cd "$(dirname -- "$0")/.."
-export PYTHONPATH="${PYTHONPATH:-$PWD}"
 
 group_start() { [ -n "${GITHUB_ACTIONS:-}" ] && echo "::group::$1" || echo "--- $1"; }
 group_end() { [ -n "${GITHUB_ACTIONS:-}" ] && echo "::endgroup::" || true; }
@@ -31,7 +39,7 @@ fi
 failed=()
 for f in "${files[@]}"; do
   group_start "$f"
-  if "${PYTHON:-python}" "$f"; then
+  if env -u PYTHONPATH "${PYTHON:-python}" "$f"; then
     echo "PASS $f"
   else
     echo "FAIL $f"

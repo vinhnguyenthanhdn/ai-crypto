@@ -10,6 +10,16 @@ reported unless it can be regenerated from the scripts in this repository.
 
 ## [Unreleased]
 
+### Changed
+
+- `scripts/run_suite.sh` strips `PYTHONPATH` for each test file instead of exporting the
+  repository root into it, and the two files that leaned on that export
+  (`test_btc_spot_trend_forward_paper.py`, `test_funding_crowding_forward_paper.py`) now
+  insert the root themselves like the other 17. `python scripts/test_x.py` — the first
+  invocation a contributor reaches for — died on `No module named 'scripts'` for those two
+  while CI stayed green, and the suite is now the thing that measures it. `CONTRIBUTING.md`
+  documents the bootstrap line rather than an exported variable.
+
 ### Added
 
 - `scripts/guard_secrets.sh`, which now carries the credential, dataset and database

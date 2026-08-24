@@ -120,15 +120,27 @@ cp .env.example .env
 Before opening a pull request:
 
 ```bash
-PYTHONPYCACHEPREFIX=/tmp/ai-crypto-pycache .venv/bin/python -m compileall -q src scripts
-for f in scripts/test_*.py; do PYTHONPATH=. .venv/bin/python "$f" || echo "FAIL $f"; done
+PYTHONPYCACHEPREFIX=/tmp/ai-crypto-pycache .venv/bin/python -m compileall -q $(git ls-files '*.py')
+PYTHON=.venv/bin/python bash scripts/run_suite.sh
 git diff --check
 ```
 
+Both commands are the ones CI runs, so what passes here is what passes there —
+`compileall` walks every tracked `.py`, and `run_suite.sh` is the single collection
+loop shared by CI and the container image.
+
 CI runs every file matching `scripts/test_*.py`, so a new test file is picked up with
-no workflow change. Two things it needs to run standalone: the repository root on
-`PYTHONPATH` (the loop above sets it, as does CI), and a `__main__` block that calls
-each test function.
+no workflow change. Two things it needs to run standalone: a `__main__` block that
+calls each test function, and — if it imports from `src/` or `scripts/` — the
+repository root inserted by the file itself:
+
+```python
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+```
+
+`run_suite.sh` strips `PYTHONPATH` before each file for that reason: `python
+scripts/test_x.py` is the first thing anyone tries, and a file that only imports
+under an exported `PYTHONPATH` fails there while passing in CI.
 
 Test files must live in `scripts/` and be named `test_*.py`; CI rejects files with
 that name outside `scripts/` instead of running them. Move such a file to `scripts/`
