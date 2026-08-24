@@ -196,17 +196,15 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Reject committed credentials, datasets and databases
-        run: |
-          set -euo pipefail
-          bad=$(git ls-files \
-            | grep -Ei '^\.env$|dashboard_secret|config/paper\.env|\.db$|^data/backtests/|\.pem$|\.key$' \
-            || true)
-          if [ -n "$bad" ]; then
-            echo "These files must never be committed:"
-            echo "$bad"
-            exit 1
-          fi
-          echo "No credentials, databases or datasets tracked."
+        run: bash scripts/guard_secrets.sh .
+
+      - name: The guard still fires on a tree it should reject
+        # This scan passes on every run and always will: none of the names it
+        # refuses can appear in a repository that has never committed one, so a
+        # pass says nothing about whether it can still fail. Plant one file per
+        # alternative in a scratch repository and require a rejection for each,
+        # every run rather than by hand once.
+        run: bash scripts/guard_secrets.sh --self-test
 
   # The README says scheduled paper trading runs under launchd on macOS. Every
   # other job here is `ubuntu-latest`, so the one platform the schedule actually
