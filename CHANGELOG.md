@@ -12,6 +12,13 @@ reported unless it can be regenerated from the scripts in this repository.
 
 ### Added
 
+- `scripts/guard_secrets.sh`, which now carries the credential, dataset and database
+  file-name scan that used to live inline in the `guard-secrets` CI job, plus a
+  `--self-test` mode the job runs on every push. The scan passes on every run and always
+  will, so passing said nothing about whether it could still fail; the self-test plants one
+  file per refused name in a scratch repository and requires a rejection for each. The
+  pattern lives in one place, so an alternative added without a case that exercises it is
+  visible rather than silently untested.
 - A `Dockerfile` and a `container` CI job. The image pins the interpreter and the
   dependency set and runs the regression suite offline; CI builds it on every push
   and asserts three things about the result — the suite count matches the checkout
