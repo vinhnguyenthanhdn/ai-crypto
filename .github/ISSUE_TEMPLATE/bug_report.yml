@@ -15,7 +15,9 @@ body:
       label: Reproduction
       description: >
         A snippet that runs on a clean checkout and prints the wrong result. Run it
-        with `PYTHONPATH=. .venv/bin/python repro.py` before pasting.
+        with `PYTHONPATH=. .venv/bin/python repro.py` before pasting. Use synthetic
+        positions and prices; do not include exchange keys, account IDs, private
+        endpoints, or customer data.
       render: python
     validations:
       required: true

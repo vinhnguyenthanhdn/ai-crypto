@@ -25,7 +25,8 @@ body:
       label: Evidence
       description: >
         The contract you ran, the commands, and the output. A rejection is a result —
-        overturning one needs a reproduction, not an argument.
+        overturning one needs a reproduction, not an argument. Use public or synthetic
+        data and remove credentials, account IDs, and private dataset paths before pasting.
       render: shell
     validations:
       required: true

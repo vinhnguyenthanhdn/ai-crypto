@@ -12,6 +12,9 @@ reported unless it can be regenerated from the scripts in this repository.
 
 ### Changed
 
+- Issue forms now ask for public or synthetic reproductions and name the account,
+  credential, endpoint, and dataset details that must be removed before output is pasted.
+  The forms previously required executable evidence without defining its public-data boundary.
 - `scripts/run_suite.sh` strips `PYTHONPATH` for each test file instead of exporting the
   repository root into it, and the two files that leaned on that export
   (`test_btc_spot_trend_forward_paper.py`, `test_funding_crowding_forward_paper.py`) now
