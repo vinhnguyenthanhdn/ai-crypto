@@ -14,9 +14,9 @@ jobs:
         python-version: ["3.10", "3.12"]
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
@@ -68,11 +68,11 @@ jobs:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
 
@@ -86,7 +86,7 @@ jobs:
   container:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Build the image
         run: docker build -t ai-crypto:ci .
@@ -113,7 +113,7 @@ jobs:
   compose:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: The service comes up and reports healthy
         run: |
@@ -153,9 +153,9 @@ jobs:
   iac:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
 
@@ -193,7 +193,7 @@ jobs:
   guard-secrets:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Reject committed credentials, datasets and databases
         run: bash scripts/guard_secrets.sh .
@@ -216,7 +216,7 @@ jobs:
       LABEL: com.ai-crypto.funding-crowding-forward
       AUTHOR_ROOT: /Users/administrator/Library/Application Support/ai-crypto-funding-forward
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # Without a gui domain there is nothing to bootstrap into and every
       # assertion below would pass vacuously. Fail here instead.
