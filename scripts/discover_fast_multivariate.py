@@ -324,7 +324,6 @@ def main() -> None:
                 usable, base[side], side, fit_end, hold_hours,
                 sl_atr,
             )
-        train_best = pd.concat([predictions["LONG"].reindex(periods["train"].index), predictions["SHORT"].reindex(periods["train"].index)], axis=1).max(axis=1)
         for quantile in QUANTILES:
             # Prediction distributions drift after each monthly refit. A causal
             # rolling percentile is stable across retrains; q alone is selected on train.

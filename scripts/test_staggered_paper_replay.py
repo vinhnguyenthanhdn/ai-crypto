@@ -15,6 +15,14 @@ from src.engine import staggered_pullback as strategy  # noqa: E402
 
 def main():
     original_db = config.DB_PATH
+    try:
+        _run()
+    finally:
+        # Khôi phục ngay cả khi assertion fail để test khác trong cùng process an toàn.
+        config.DB_PATH = original_db
+
+
+def _run():
     with tempfile.TemporaryDirectory(prefix="staggered-paper-test-") as temp_dir:
         config.DB_PATH = Path(temp_dir) / "replay.db"
         index = pd.date_range("2025-01-01", periods=4, freq="4h")
@@ -59,14 +67,8 @@ def main():
         assert entry_count == exit_count == 2
         assert event_years == ("2025", "2025")
         assert daily_days == 1
-    config.DB_PATH = original_db
     print("=== staggered accelerated Paper lifecycle: 1/1 PASS ===")
 
 
 if __name__ == "__main__":
-    try:
-        main()
-    finally:
-        # Khôi phục ngay cả khi assertion fail để test khác trong cùng process an toàn.
-        if "original_db" in globals():
-            config.DB_PATH = original_db
+    main()

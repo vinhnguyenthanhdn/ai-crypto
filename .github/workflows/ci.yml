@@ -42,6 +42,25 @@ jobs:
           python -m compileall -q "${sources[@]}"
           echo "Compiled ${#sources[@]} tracked Python file(s)."
 
+      # compileall answers "does this parse". It says nothing about a name that
+      # resolves to nothing, because Python resolves names when the line runs —
+      # and the line that never ran here was a cleanup guard in a test, so its
+      # failure was invisible by construction. flake8's F class is the smallest
+      # set that catches that: undefined names (F821), unused imports (F4) and
+      # values computed and thrown away (F841). It is scoped to F on purpose;
+      # the style codes are a different argument and would drown this one.
+      - name: Reject undefined names, unused imports and dead assignments
+        run: |
+          set -euo pipefail
+          mapfile -t sources < <(git ls-files '*.py')
+          if [ "${#sources[@]}" -eq 0 ]; then
+            echo "No tracked .py file matched — this step would be a no-op."
+            exit 1
+          fi
+          pip install flake8
+          flake8 --select=F "${sources[@]}"
+          echo "Checked ${#sources[@]} tracked Python file(s) for F-class findings."
+
       - name: Reject test files outside scripts/
         run: |
           set -euo pipefail

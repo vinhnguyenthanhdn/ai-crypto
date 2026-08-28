@@ -138,7 +138,6 @@ def run_paper_backtest(
 
     enriched = technical.add_indicators(primary_df)  # dùng để chấm regime (frozen mỗi bar, không theo tick)
     primary_ts = primary_df["ts"].to_numpy()
-    open_vals = primary_df["open"].to_numpy()
     close_vals = primary_df["close"].to_numpy()
 
     if funding_rates:

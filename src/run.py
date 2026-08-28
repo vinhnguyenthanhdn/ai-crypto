@@ -672,7 +672,6 @@ def _run_once(lock_owner=None):
         else:
             last_logged_entry_action = None
 
-        still_in_position = remaining_open > 0 or entered
         tick_status = exit_status or entry_action
         tick_reason = exit_reason if open_positions else entry_reason
         open_positions_count = remaining_open + (1 if entered else 0)
