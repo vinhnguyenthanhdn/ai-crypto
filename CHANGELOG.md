@@ -25,6 +25,15 @@ reported unless it can be regenerated from the scripts in this repository.
 
 ### Added
 
+- `scripts/test_daily_loss_limit.py`, the first gate over `DAILY_LOSS_LIMIT_PCT`. The name
+  appeared zero times in the suite, so neither the threshold comparison nor the
+  `daily_pnl.trading_halted` column it writes had ever been checked, and `run.py` reads that
+  column every loop to decide whether an entry is allowed. The layer is asymmetric within a
+  day and symmetric across days, and the two halves fail in opposite directions: a winning
+  trade must not reopen a day that already halted, and a halt must expire at the UTC day
+  boundary rather than locking the system for good. Mutation-checked at the source: dropping
+  `MAX(trading_halted, ?)`, weakening `<=` to `<`, dropping `abs()` around the configured
+  limit, and widening the reader from today to any halted day each turn exactly one case red.
 - `scripts/guard_secrets.sh`, which now carries the credential, dataset and database
   file-name scan that used to live inline in the `guard-secrets` CI job, plus a
   `--self-test` mode the job runs on every push. The scan passes on every run and always
