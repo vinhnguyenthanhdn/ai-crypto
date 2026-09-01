@@ -554,9 +554,7 @@ def _run_once(lock_owner=None):
 
     # Max Drawdown (Risk Engine): vượt ngưỡng thì tự bật Kill Switch, không tự tắt lại
     # — cần người kiểm tra và tắt thủ công (xem scripts/kill_switch.py) trước khi trade tiếp.
-    max_dd = state_store.get_max_drawdown_pct()
-    if max_dd >= config.MAX_DRAWDOWN_PCT and not state_store.is_kill_switch_on():
-        state_store.set_kill_switch(True, reason=f"Max drawdown {max_dd}% >= ngưỡng {config.MAX_DRAWDOWN_PCT}%")
+    state_store.arm_kill_switch_if_drawdown_breached()
 
     # Cửa sổ theo dõi liên tục. Stop Loss/Take Profit (giá so trực tiếp, trong
     # decide_exit) và vị trí giá so vùng pullback (trong decide_entry) đã nhận

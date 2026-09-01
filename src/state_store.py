@@ -617,6 +617,23 @@ def get_kill_switch_reason() -> str:
     return get_kv("kill_switch_reason", "")
 
 
+def arm_kill_switch_if_drawdown_breached() -> bool:
+    """Bật Kill Switch khi Max Drawdown vượt ngưỡng; không bao giờ tự tắt lại.
+
+    README khai luật này là bất đối xứng: hệ tự bật, chỉ người tắt được
+    (`scripts/kill_switch.py off`). Luật nằm ở đây thay vì inline trong vòng
+    chạy để chính nó gọi được từ test — vòng chạy cần network và dữ liệu thật,
+    nên khi luật sống trong đó thì không phép đo nào chạm được vào nó.
+
+    Trả về True nếu lần gọi này vừa bật.
+    """
+    max_dd = get_max_drawdown_pct()
+    if max_dd >= config.MAX_DRAWDOWN_PCT and not is_kill_switch_on():
+        set_kill_switch(True, reason=f"Max drawdown {max_dd}% >= ngưỡng {config.MAX_DRAWDOWN_PCT}%")
+        return True
+    return False
+
+
 def record_exit_now(ts: str | None = None):
     """Đánh dấu thời điểm SELL gần nhất để tính Cooldown (Risk Engine)."""
     set_kv("last_exit_at", ts or _now_iso())
