@@ -319,7 +319,7 @@ def _handle_entry(price, total_score, regime_label, trading_halted, primary_with
         return "IGNORE", reason, False, pullback_ok
 
     open_positions = state_store.get_open_positions()
-    max_positions = 1 if is_sr else config.MAX_CONCURRENT_POSITIONS
+    max_positions = risk.max_concurrent_positions()
     if len(open_positions) >= max_positions:
         reason = f"Đã đạt số lệnh mở tối đa ({max_positions})"
         state_store.log_event("RISK_REJECTED", {"reason": reason, "total_score": total_score, "gate": "max_concurrent_positions"})
@@ -656,7 +656,7 @@ def _run_once(lock_owner=None):
         # Chỉ tìm entry mới nếu còn slot (MAX_CONCURRENT_POSITIONS) sau khi đã
         # trừ các vị thế vừa exit ở trên trong cùng tick này.
         entry_action, entry_reason, entered = None, "", False
-        profile_max_positions = 1 if config.SCORING_PROFILE == "support_resistance_only" else config.MAX_CONCURRENT_POSITIONS
+        profile_max_positions = risk.max_concurrent_positions()
         if remaining_open < profile_max_positions:
             entry_action, entry_reason, entered, tick_pullback_ok = _handle_entry(
                 price, live_total_score, regime_result["label"], trading_halted,

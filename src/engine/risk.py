@@ -44,6 +44,27 @@ def sl_beyond_liquidation(stop_price: float, liquidation_price: float, side: str
     return stop_price >= liquidation_price
 
 
+def max_concurrent_positions(scoring_profile: str | None = None) -> int:
+    """Trần số lệnh song song, và là nguồn duy nhất cho nó.
+
+    Profile `support_resistance_only` chốt ở một slot bất kể cấu hình: nó vào
+    lệnh theo một vùng support cụ thể, nên lệnh thứ hai cùng lúc là cùng một
+    luận điểm đặt hai lần chứ không phải hai luận điểm.
+
+    Trần này có **hai** người đọc mang hai nghĩa khác nhau — cổng đếm ở
+    `run.py:_handle_entry` và ngân sách rủi ro danh mục ở `_plan_common` — nên
+    nó phải nằm ở đúng một chỗ. Trước đó cả hai điểm quyết định trong `run.py`
+    tự viết lại cùng một biểu thức, còn ngân sách rủi ro đọc thẳng
+    `config.MAX_CONCURRENT_POSITIONS` và **bỏ qua vế profile**: dưới profile SR
+    với cấu hình > 1, cổng đếm cho một slot trong khi ngân sách vẫn cấp cho
+    nhiều, tức lớp ngân sách âm thầm thôi ràng buộc gì.
+    """
+    profile = config.SCORING_PROFILE if scoring_profile is None else scoring_profile
+    if profile == "support_resistance_only":
+        return 1
+    return int(config.MAX_CONCURRENT_POSITIONS)
+
+
 def compute_open_risk_usd(open_positions: list) -> float:
     """Tổng USD sẽ mất nếu TẤT CẢ vị thế đang mở đều bị chạm Stop Loss — ngân
     sách rủi ro danh mục đã bị các lệnh đang mở chiếm dụng, dùng để xét thêm 1
@@ -82,7 +103,7 @@ def _plan_common(entry_price: float, stop_price: float, take_profit_price: float
     # Ngân sách rủi ro toàn danh mục = rủi ro/lệnh x số lệnh song song tối đa —
     # lệnh mới không được đẩy tổng rủi ro (đang mở + lệnh này) vượt mức này,
     # dù từng lệnh riêng lẻ vẫn size đúng theo ATR/% vốn như cũ.
-    portfolio_risk_budget_usd = risk_amount_usd * config.MAX_CONCURRENT_POSITIONS
+    portfolio_risk_budget_usd = risk_amount_usd * max_concurrent_positions()
     remaining_risk_budget_usd = max(0.0, portfolio_risk_budget_usd - already_committed_risk_usd)
     risk_amount_usd = min(risk_amount_usd, remaining_risk_budget_usd)
 
