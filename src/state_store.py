@@ -367,12 +367,6 @@ def get_open_positions() -> list:
     return result
 
 
-def count_open_positions() -> int:
-    with get_conn() as conn:
-        row = conn.execute("SELECT COUNT(*) FROM position_state WHERE status = 'IN_POSITION'").fetchone()
-    return row[0] if row else 0
-
-
 def open_position(symbol, entry_price, entry_time, entry_score, stop_price, take_profit_price,
                   size_usd, tp_reason=None, scoring_profile="champion",
                   position_meta: dict | None = None) -> str:
@@ -524,24 +518,6 @@ def record_trade_accounting(trade_id: str, accounting: dict, ts: str | None = No
         "accounting": full_accounting,
         "duplicate": False,
     }
-
-
-def add_daily_pnl(pnl_pct: float):
-    """Compatibility cho caller cũ; code trading mới dùng record_trade_accounting."""
-    today = _today()
-    with get_conn() as conn:
-        conn.execute(
-            "INSERT INTO daily_pnl (trade_date, realized_pnl_pct) VALUES (?, ?) "
-            "ON CONFLICT(trade_date) DO UPDATE SET realized_pnl_pct = realized_pnl_pct + excluded.realized_pnl_pct",
-            (today, pnl_pct),
-        )
-        row = conn.execute(
-            "SELECT realized_pnl_pct FROM daily_pnl WHERE trade_date = ?", (today,)
-        ).fetchone()
-        if row and row[0] <= -abs(config.DAILY_LOSS_LIMIT_PCT):
-            conn.execute(
-                "UPDATE daily_pnl SET trading_halted = 1 WHERE trade_date = ?", (today,)
-            )
 
 
 def get_kv(key, default=None):
