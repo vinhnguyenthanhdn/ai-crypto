@@ -383,9 +383,16 @@ drawdown is a peak-to-trough historical level and does not fall back on its own.
 Clearing it is `python scripts/kill_switch.py off`, a human action.
 `kill_switch.py status` reports the current state and the recorded reason.
 
-Each of the first three has a gate under `scripts/`: `test_kill_switch_asymmetry.py`,
-`test_cooldown_window.py` and `test_daily_loss_limit.py`. The last three are not
-covered yet, and that is stated here rather than left for a reader to discover.
+`MAX_HOLD_MINUTES` (default 1440) is the other half of the same concern and is
+not in the table because it refuses nothing: it is the horizon past which an open
+position is closed by `TIMEOUT_EXIT`, applied by both exit paths `_handle_exit`
+can take. Setting it to `0` turns the horizon off rather than closing everything.
+
+Each of the first three, plus the horizon, has a gate under `scripts/`:
+`test_kill_switch_asymmetry.py`, `test_cooldown_window.py`,
+`test_daily_loss_limit.py` and `test_max_hold_timeout.py`. The last three rows of
+the table are not covered yet, and that is stated here rather than left for a
+reader to discover.
 
 ### What to read, in order
 
