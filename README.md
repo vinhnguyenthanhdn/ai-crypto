@@ -388,11 +388,17 @@ not in the table because it refuses nothing: it is the horizon past which an ope
 position is closed by `TIMEOUT_EXIT`, applied by both exit paths `_handle_exit`
 can take. Setting it to `0` turns the horizon off rather than closing everything.
 
-Each of the first three, plus the horizon, has a gate under `scripts/`:
-`test_kill_switch_asymmetry.py`, `test_cooldown_window.py`,
-`test_daily_loss_limit.py` and `test_max_hold_timeout.py`. The last three rows of
-the table are not covered yet, and that is stated here rather than left for a
-reader to discover.
+`MAX_CONCURRENT_POSITIONS` has two readers meaning two different things: the
+counting gate above, and the portfolio risk budget in `_plan_common`, which
+multiplies it by the per-trade risk and refuses to size a new position once open
+ones have used the budget up. Both, and both decision points in `run.py`, read it
+through `risk.max_concurrent_positions()`.
+
+Gates with a test under `scripts/`: `test_kill_switch_asymmetry.py`,
+`test_cooldown_window.py`, `test_daily_loss_limit.py`,
+`test_max_concurrent_positions.py`, and `test_max_hold_timeout.py` for the
+horizon. `MAX_CROSS_EXCHANGE_DIVERGENCE_PCT` and `MIN_TP_COST_RATIO` are not
+covered yet, and that is stated here rather than left for a reader to discover.
 
 ### What to read, in order
 
