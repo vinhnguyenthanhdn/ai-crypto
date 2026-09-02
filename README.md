@@ -356,16 +356,36 @@ are deliberate:
 
 ### Stops
 
-| Control | Default | Behaviour |
-|---|---|---|
-| `DAILY_LOSS_LIMIT_PCT` | 5 | Daily realized-loss limit, tracked in `daily_pnl` |
-| `MAX_DRAWDOWN_PCT` | 15 | On breach `src/run.py` turns the kill switch **on** by itself |
-| `RUN_LOCK_STALE_MINUTES` | 5 | `run_lock` heartbeat age after which a lock is treated as abandoned |
+Every gate below can refuse an entry on its own, in the order `_handle_entry`
+applies them. Each one logs a `RISK_REJECTED` event naming itself, so the
+question "why did it not trade" is answered by reading the `gate` field rather
+than by inferring it from the score:
 
-The kill switch is asymmetric on purpose: the system arms it automatically and
-never disarms it automatically. Clearing it is `python scripts/kill_switch.py off`,
-a human action, because the condition that tripped it does not expire on its own.
+| Control | Default | `gate` logged | Refuses when | Clears itself |
+|---|---|---|---|---|
+| `MAX_DRAWDOWN_PCT` | 15 | `kill_switch` | Peak-to-trough drawdown reaches the limit; `src/run.py` arms the kill switch itself | **No** — a human clears it |
+| `COOLDOWN_MINUTES` | 30 | `cooldown` | Less than this long since the last exit | Yes, when the window elapses |
+| `DAILY_LOSS_LIMIT_PCT` | 5 | `daily_loss_halt` | Realized loss for the UTC day reaches the limit, tracked in `daily_pnl` | Yes, at the next UTC day |
+| `MAX_CROSS_EXCHANGE_DIVERGENCE_PCT` | 0.15, and the gate is off unless `CROSS_EXCHANGE_DIVERGENCE_GATE_ENABLED=true` | `basis_risk` | The reference price diverges from the execution venue past the limit — read as a data fault, not a signal | Yes, when the prices reconverge |
+| `MAX_CONCURRENT_POSITIONS` | 1 | `max_concurrent_positions` | Open positions already fill every slot | Yes, when a position closes |
+| `MIN_TP_COST_RATIO` | 2.5 | `cost_gate` | Take profit is not this many times the round-trip cost away from entry | Yes, on the next setup that clears it |
+
+`RUN_LOCK_STALE_MINUTES` (default 5) is not an entry gate: it is the `run_lock`
+heartbeat age after which a lock is treated as abandoned, so a killed process
+cannot lock the engine out forever.
+
+The last column is the distinction that matters when one of these is holding the
+system back, and it is why the kill switch is a separate layer rather than a
+longer cooldown. Everything else in the table is a pause that ends when the
+condition that raised it ends. The kill switch is asymmetric on purpose: the
+system arms it automatically and never disarms it automatically, because a
+drawdown is a peak-to-trough historical level and does not fall back on its own.
+Clearing it is `python scripts/kill_switch.py off`, a human action.
 `kill_switch.py status` reports the current state and the recorded reason.
+
+Each of the first three has a gate under `scripts/`: `test_kill_switch_asymmetry.py`,
+`test_cooldown_window.py` and `test_daily_loss_limit.py`. The last three are not
+covered yet, and that is stated here rather than left for a reader to discover.
 
 ### What to read, in order
 
