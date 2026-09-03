@@ -8,6 +8,9 @@
 !src/**
 !scripts/**
 
+# Read by scripts/test_stops_table_coverage.py, which the image runs.
+!README.md
+
 # Even inside what is allowed, never the caches or local state.
 **/__pycache__
 **/*.pyc
