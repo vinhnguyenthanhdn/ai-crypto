@@ -394,11 +394,20 @@ multiplies it by the per-trade risk and refuses to size a new position once open
 ones have used the budget up. Both, and both decision points in `run.py`, read it
 through `risk.max_concurrent_positions()`.
 
+`MIN_TP_COST_RATIO` also has two readers in two units: `_plan_common` compares
+percentages, and `support_resistance.compute_position_plan` rebuilds the same
+hurdle in price (`entry * round_trip_cost/100 * ratio`) to filter targets before
+a plan exists. The second one is the live path of the `support_resistance_only`
+profile, so both are covered rather than only the one the other gates go through.
+
 Gates with a test under `scripts/`: `test_kill_switch_asymmetry.py`,
 `test_cooldown_window.py`, `test_daily_loss_limit.py`,
-`test_max_concurrent_positions.py`, and `test_max_hold_timeout.py` for the
-horizon. `MAX_CROSS_EXCHANGE_DIVERGENCE_PCT` and `MIN_TP_COST_RATIO` are not
-covered yet, and that is stated here rather than left for a reader to discover.
+`test_max_concurrent_positions.py`, `test_cost_gate.py`, and
+`test_max_hold_timeout.py` for the horizon. `MAX_CROSS_EXCHANGE_DIVERGENCE_PCT`
+is not covered yet, and that is stated here rather than left for a reader to
+discover. `test_stops_table_coverage.py` holds this paragraph to the table: a
+gate cannot gain a test and stay listed as uncovered, and it cannot lose one
+silently.
 
 ### What to read, in order
 

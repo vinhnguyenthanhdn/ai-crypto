@@ -28,6 +28,11 @@ RUN pip install --no-cache-dir --upgrade pip \
 
 COPY src ./src
 COPY scripts ./scripts
+# The suite reads README.md: one test holds the documented list of risk gates
+# to the tests that actually exist. The image runs the whole suite, so it has
+# to carry that subject too - a file the suite reads is part of the artifact,
+# not documentation left outside it.
+COPY README.md ./
 
 # Nothing here needs to run as root or to write to its own source. Only config/
 # is handed to the runtime user: the image ships no configuration, but the
