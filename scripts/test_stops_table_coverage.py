@@ -66,11 +66,35 @@ def _table_controls() -> list[str]:
     return controls
 
 
+_FULL_COVERAGE = "Every gate in the table now has one."
+
+
+def _coverage_claim() -> tuple[str, set[str]]:
+    """Lời khai của README về phạm vi phủ, ở đúng một trong hai hình dạng.
+
+    Bản đầu của cổng này đòi câu tự nhận "chưa phủ" **luôn tồn tại**, và nó chết
+    ngay ngày gate cuối cùng có test — một cổng chỉ đúng khi lời thú nhận còn dở
+    dang là một cổng không sống qua chính thành công nó đo. Trạng thái phủ đủ vẫn
+    là một lời khai, và nó vẫn sai được: gate thêm vào bảng sau đó không có test
+    thì câu này thành nói quá, nên nó phải được rút ra và chấm như câu kia.
+    """
+    partial = re.search(r"([^.]*\bnot\s+covered yet[^.]*\.)", _readme(), re.S)
+    full = re.search(_FULL_COVERAGE.replace(" ", r"\s+"), _readme()) is not None
+    assert partial or full, (
+        "README không khai phạm vi phủ theo hình dạng nào: cần một câu "
+        f"'not covered yet' hoặc đúng câu '{_FULL_COVERAGE}'"
+    )
+    assert not (partial and full), (
+        "README khai cả 'chưa phủ' và phủ đủ cùng lúc — hai lời khai ngược nhau"
+    )
+    if partial:
+        return "partial", set(re.findall(rf"`({_CONTROL})`", partial.group(1)))
+    return "full", set()
+
+
 def _declared_uncovered() -> set[str]:
-    """Tên hằng số trong câu tự nhận chưa có test."""
-    sentence = re.search(r"([^.]*\bnot\s+covered yet[^.]*\.)", _readme(), re.S)
-    assert sentence, "README không còn câu khai gate nào chưa được test"
-    return set(re.findall(rf"`({_CONTROL})`", sentence.group(1)))
+    """Tên hằng số README tự nhận chưa có test; rỗng khi nó khai phủ đủ."""
+    return _coverage_claim()[1]
 
 
 def _declared_test_files() -> set[str]:
@@ -106,6 +130,22 @@ def test_every_gate_is_either_tested_or_declared_untested():
     assert uncovered <= set(_table_controls()), uncovered
 
 
+def test_the_coverage_claim_has_exactly_one_shape():
+    """Hai hình dạng lời khai là loại trừ nhau, và vắng cả hai cũng là lệch.
+
+    Không có ca này thì một lần sửa README bỏ cả hai câu biến cổng thành no-op:
+    tập "chưa phủ" rỗng bù đúng bằng tập gate đã có test, và mọi thứ vẫn cân.
+    """
+    mode, uncovered = _coverage_claim()
+    assert mode in ("partial", "full")
+    if mode == "full":
+        assert not uncovered
+        for control in _table_controls():
+            assert _tests_naming(control), (
+                f"README khai mọi gate đã có test, nhưng không test nào nêu {control}"
+            )
+
+
 def test_the_named_test_files_exist_and_run():
     """Suite chạy bằng glob, nên tồn tại trên đĩa là đủ điều kiện được chạy —
     vế cần chấm là tên trong README có trỏ tới file thật hay không."""
@@ -118,6 +158,7 @@ def test_the_named_test_files_exist_and_run():
 def main():
     tests = [
         test_the_table_is_readable,
+        test_the_coverage_claim_has_exactly_one_shape,
         test_every_gate_is_either_tested_or_declared_untested,
         test_the_named_test_files_exist_and_run,
     ]

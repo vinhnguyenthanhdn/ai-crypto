@@ -65,6 +65,44 @@ def max_concurrent_positions(scoring_profile: str | None = None) -> int:
     return int(config.MAX_CONCURRENT_POSITIONS)
 
 
+def basis_risk_veto(reference_diff_pct: float | None,
+                    enabled: bool | None = None,
+                    limit_pct: float | None = None) -> tuple[bool, str | None]:
+    """Chênh lệch giá giữa sàn tham chiếu và sàn thực thi có đủ để veto không.
+
+    Đây là lớp duy nhất trong bảng § Stops **không** đọc trạng thái nội bộ: nó
+    đọc thế giới bên ngoài và kết luận rằng dữ liệu vào đang sai, chứ không
+    rằng thị trường đang xấu. Vì thế `None` — không lấy được giá tham chiếu —
+    **không** phải lý do veto: một sàn thứ hai không trả lời là chuyện thường
+    xuyên, và biến nó thành veto là tự tắt bot mỗi lần một endpoint chậm.
+
+    Ba vế mà một biểu thức viết tại chỗ đánh mất, và cả ba đã từng không được
+    chấm ở đâu:
+
+    - **Dấu.** Giá tham chiếu *thấp hơn* sàn thực thi lệch đúng bằng thế cũng là
+      lỗi data. Bỏ `abs()` thì nửa số ca hỏng trở thành hợp lệ và không có gì báo.
+    - **Đơn vị.** Cả hai đầu là phần trăm. Chia hoặc nhân 100 ở một đầu vẫn cho
+      quyết định đúng ở phần lớn giá trị và sai ở đúng dải đáng quan tâm.
+    - **Công tắc.** Cổng mặc định TẮT, nên mọi lần chạy thật hôm nay đi qua nhánh
+      không-veto — đó là lý do nó có thể sai rất lâu mà không ai thấy.
+
+    Trả về `(veto, lý do)`; lý do nêu cả mức lệch đo được và ngưỡng, vì người đọc
+    log cần biết nó lệch *bao nhiêu* để quyết định có chỉnh ngưỡng hay không.
+    """
+    on = config.CROSS_EXCHANGE_DIVERGENCE_GATE_ENABLED if enabled is None else enabled
+    if not on or reference_diff_pct is None:
+        return False, None
+
+    limit = float(config.MAX_CROSS_EXCHANGE_DIVERGENCE_PCT if limit_pct is None else limit_pct)
+    if abs(float(reference_diff_pct)) <= limit:
+        return False, None
+
+    return True, (
+        f"Giá Binance lệch {reference_diff_pct}% so với OKX, vượt ngưỡng "
+        f"{limit}% — nghi ngờ lỗi data, không vào lệnh"
+    )
+
+
 def compute_open_risk_usd(open_positions: list) -> float:
     """Tổng USD sẽ mất nếu TẤT CẢ vị thế đang mở đều bị chạm Stop Loss — ngân
     sách rủi ro danh mục đã bị các lệnh đang mở chiếm dụng, dùng để xét thêm 1
