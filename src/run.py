@@ -309,12 +309,9 @@ def _handle_entry(price, total_score, regime_label, trading_halted, primary_with
     # Basis-risk gate (`TODO-BASIS-GATE`) — mặc định TẮT.
     # Không dùng giá Binance để tính score/entry — chỉ veto nếu lệch bất thường
     # so với sàn thực thi (OKX), dấu hiệu lỗi data hơn là tín hiệu giao dịch.
-    if (config.CROSS_EXCHANGE_DIVERGENCE_GATE_ENABLED and binance_price_diff_pct is not None
-            and abs(binance_price_diff_pct) > config.MAX_CROSS_EXCHANGE_DIVERGENCE_PCT):
-        reason = (
-            f"Giá Binance lệch {binance_price_diff_pct}% so với OKX, vượt ngưỡng "
-            f"{config.MAX_CROSS_EXCHANGE_DIVERGENCE_PCT}% — nghi ngờ lỗi data, không vào lệnh"
-        )
+    basis_veto, basis_reason = risk.basis_risk_veto(binance_price_diff_pct)
+    if basis_veto:
+        reason = basis_reason
         state_store.log_event("RISK_REJECTED", {"reason": reason, "total_score": total_score, "gate": "basis_risk"})
         return "IGNORE", reason, False, pullback_ok
 

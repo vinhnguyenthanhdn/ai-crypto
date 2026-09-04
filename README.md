@@ -403,9 +403,9 @@ profile, so both are covered rather than only the one the other gates go through
 Gates with a test under `scripts/`: `test_kill_switch_asymmetry.py`,
 `test_cooldown_window.py`, `test_daily_loss_limit.py`,
 `test_max_concurrent_positions.py`, `test_cost_gate.py`, and
-`test_max_hold_timeout.py` for the horizon. `MAX_CROSS_EXCHANGE_DIVERGENCE_PCT`
-is not covered yet, and that is stated here rather than left for a reader to
-discover. `test_stops_table_coverage.py` holds this paragraph to the table: a
+`test_max_hold_timeout.py` for the horizon, and
+`test_cross_exchange_divergence.py` for the basis-risk limit. Every gate in the
+table now has one. `test_stops_table_coverage.py` holds this paragraph to the table: a
 gate cannot gain a test and stay listed as uncovered, and it cannot lose one
 silently.
 
